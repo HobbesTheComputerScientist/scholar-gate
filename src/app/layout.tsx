@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Scholar Gate",
+  title: "Research Coach",
   description:
-    "AI-guided platform to draft your first academic research paper through a structured 10-stage milestone framework.",
+    "Coach undergrads through Orient and Find your question. Project Brain in Postgres is the source of truth.",
 };
 
 export default function RootLayout({

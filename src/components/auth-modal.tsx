@@ -13,36 +13,31 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
-const MOCK_AUTH_DELAY_MS = 800;
-
 export type AuthMode = "signIn" | "signUp";
-
-export type AuthSuccessPayload = {
-  email: string;
-  mode: AuthMode;
-};
 
 export type AuthModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAuthSuccess: (payload: AuthSuccessPayload) => void;
+  onAuthed: () => Promise<void> | void;
   defaultMode?: AuthMode;
 };
 
 export function AuthModal({
   open,
   onOpenChange,
-  onAuthSuccess,
+  onAuthed,
   defaultMode = "signIn",
 }: AuthModalProps) {
   const [mode, setMode] = useState<AuthMode>(defaultMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
       setMode(defaultMode);
+      setError(null);
     }
   }, [open, defaultMode]);
 
@@ -50,6 +45,7 @@ export function AuthModal({
     setEmail("");
     setPassword("");
     setIsSubmitting(false);
+    setError(null);
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -59,25 +55,36 @@ export function AuthModal({
     onOpenChange(nextOpen);
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
+    setError(null);
 
-    const credentials = { email: email.trim(), password };
-
-    if (mode === "signIn") {
-      // TODO: Replace with supabase.auth.signInWithPassword()
-    } else {
-      // TODO: Replace with supabase.auth.signUp()
-    }
-
-    console.log({ mode, ...credentials });
-
-    window.setTimeout(() => {
-      onAuthSuccess({ email: credentials.email, mode });
+    try {
+      const response = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode,
+          email: email.trim(),
+          password,
+        }),
+      });
+      const body = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(body.error ?? "Could not authenticate.");
+      }
       resetForm();
       onOpenChange(false);
-    }, MOCK_AUTH_DELAY_MS);
+      await onAuthed();
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "Could not authenticate.",
+      );
+      setIsSubmitting(false);
+    }
   }
 
   const isSignIn = mode === "signIn";
@@ -89,8 +96,8 @@ export function AuthModal({
           <DialogTitle>{isSignIn ? "Sign in" : "Create account"}</DialogTitle>
           <DialogDescription>
             {isSignIn
-              ? "Enter your email and password to access Scholar Gate."
-              : "Register with email and password to get started."}
+              ? "Sign in to keep Project Brain state across sessions."
+              : "Register with email and password. Local demo accounts live in this server process until it restarts unless Supabase is configured."}
           </DialogDescription>
         </DialogHeader>
 
@@ -131,6 +138,12 @@ export function AuthModal({
               minLength={6}
             />
           </div>
+
+          {error ? (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null}
 
           <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0">
             <Button type="submit" className="w-full" disabled={isSubmitting}>

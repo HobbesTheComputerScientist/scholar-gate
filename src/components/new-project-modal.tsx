@@ -14,9 +14,9 @@ import {
 import { Input } from "@/components/ui/input";
 import {
   EXPERIENCE_LEVEL_LABELS,
-  type CreateResearchProjectInput,
   type ExperienceLevel,
-} from "@/lib/api-placeholder";
+  type Project,
+} from "@/lib/db/types";
 import { cn } from "@/lib/utils";
 
 const EXPERIENCE_OPTIONS = Object.entries(EXPERIENCE_LEVEL_LABELS) as [
@@ -27,16 +27,16 @@ const EXPERIENCE_OPTIONS = Object.entries(EXPERIENCE_LEVEL_LABELS) as [
 export type NewProjectModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreateProject: (input: CreateResearchProjectInput) => Promise<void>;
+  onCreated: (project: Project) => void;
 };
 
 export function NewProjectModal({
   open,
   onOpenChange,
-  onCreateProject,
+  onCreated,
 }: NewProjectModalProps) {
   const [name, setName] = useState("");
-  const [topicArea, setTopicArea] = useState("");
+  const [interest, setInterest] = useState("");
   const [experienceLevel, setExperienceLevel] =
     useState<ExperienceLevel>("brand_new");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,7 +45,7 @@ export function NewProjectModal({
   useEffect(() => {
     if (!open) {
       setName("");
-      setTopicArea("");
+      setInterest("");
       setExperienceLevel("brand_new");
       setError(null);
       setIsSubmitting(false);
@@ -58,14 +58,26 @@ export function NewProjectModal({
     setIsSubmitting(true);
 
     try {
-      await onCreateProject({ name, topicArea, experienceLevel });
+      const response = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, interest, experienceLevel }),
+      });
+      const body = (await response.json()) as {
+        project?: Project;
+        error?: string;
+      };
+      if (!response.ok || !body.project) {
+        throw new Error(body.error ?? "Could not create project.");
+      }
+      onCreated(body.project);
       onOpenChange(false);
     } catch (submitError) {
-      const message =
+      setError(
         submitError instanceof Error
           ? submitError.message
-          : "Could not create project.";
-      setError(message);
+          : "Could not create project.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -75,11 +87,10 @@ export function NewProjectModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Start new project</DialogTitle>
+          <DialogTitle>Start a research project</DialogTitle>
           <DialogDescription>
-            Scholar Gate will guide you from discovery through submission using
-            ten structured milestones. Share a name, topic area, and how familiar
-            you already are with the subject.
+            MVP covers Orient and Find your question only. The coach will not
+            write the paper.
           </DialogDescription>
         </DialogHeader>
 
@@ -91,7 +102,7 @@ export function NewProjectModal({
             <Input
               id="project-name"
               name="name"
-              placeholder="e.g. Efficient routing in sparse networks"
+              placeholder="e.g. Sparse routing for on-device models"
               value={name}
               onChange={(event) => setName(event.target.value)}
               disabled={isSubmitting}
@@ -105,10 +116,10 @@ export function NewProjectModal({
             </label>
             <Input
               id="topic-area"
-              name="topicArea"
-              placeholder="e.g. graph algorithms, climate modeling, HCI for education"
-              value={topicArea}
-              onChange={(event) => setTopicArea(event.target.value)}
+              name="interest"
+              placeholder="e.g. efficient transformers for education apps"
+              value={interest}
+              onChange={(event) => setInterest(event.target.value)}
               disabled={isSubmitting}
               required
             />
