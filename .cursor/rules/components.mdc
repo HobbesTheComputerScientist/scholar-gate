@@ -1,0 +1,29 @@
+---
+description: UI component patterns for Research Coach (phase stepper, chat, Project Brain)
+globs: src/components/**/*.tsx,components/**/*.tsx,src/app/**/*.tsx
+alwaysApply: false
+---
+
+# Components
+
+- Use functional client/server components as appropriate. Keep shadcn/ui
+  primitives in `components/ui/`; app features live in `src/components/`.
+- Target three-panel layout: phase stepper, chat, editable Project Brain.
+- Project Brain shows structured Postgres state. Edits are user-owned;
+  AI changes appear as proposed patches to accept or reject — never silent
+  writes from the model.
+- The AI coaches and critiques in chat. Do not add paper-drafting,
+  experiment, or ghostwriting UI. MVP is Phase 1 (Orient) and Phase 2
+  (Find your question) only.
+
+```tsx
+// ❌ BAD — apply model output directly
+setProject(await chatResponse.state);
+
+// ✅ GOOD — queue a patch for the user
+setProposedPatch(validatedPatch);
+```
+
+- Do not put Anthropic/Supabase service-role keys or model calls in
+  client components. Call `/api/*` routes instead.
+- Reuse existing dialogs, cards, buttons, and inputs rather than new kits.

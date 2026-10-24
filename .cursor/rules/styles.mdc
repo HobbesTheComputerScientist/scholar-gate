@@ -1,0 +1,28 @@
+---
+description: Tailwind and shadcn/ui styling conventions for Research Coach
+globs: **/*.css,src/app/**/*.tsx,src/components/**/*.tsx,components/ui/**/*.tsx
+alwaysApply: false
+---
+
+# Styles
+
+Use Tailwind v4 utility classes and shadcn/ui tokens from
+`src/app/globals.css`. Do not add a second CSS framework or ad-hoc
+global stylesheets.
+
+- Prefer existing `button`, `card`, `dialog`, `input`, `table` primitives.
+- Style via `className` + `cn()` (`clsx` + `tailwind-merge`).
+- Map colors to semantic tokens (`bg-background`, `text-muted-foreground`,
+  `border-border`, `bg-primary`) so light/dark CSS variables keep working.
+- Keep the three-panel workspace readable: stepper, chat, Project Brain
+  should share spacing and type scale, not custom one-off palettes.
+
+```tsx
+// ❌ BAD
+<div style={{ color: "#333", fontFamily: "Inter" }} />
+
+// ✅ GOOD
+<div className="text-foreground font-sans">
+  <Card className="border bg-card" />
+</div>
+```

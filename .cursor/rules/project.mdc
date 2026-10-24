@@ -1,0 +1,33 @@
+---
+description: Research Coach architecture — product scope, stack, and hard constraints
+alwaysApply: true
+---
+
+# Research Coach
+
+Web app that guides undergrads through starting an AI/ML research paper.
+Core differentiator: the AI never loses project context. Structured project
+state in Postgres is the source of truth; assemble prompts from it on every
+call. Do NOT rely on chat history for memory.
+
+# Stack
+
+Next.js App Router, TypeScript (strict), Supabase (auth, Postgres, RLS),
+Anthropic API from server routes only. Tailwind + shadcn/ui.
+
+# Hard rules
+
+- API keys only in server code. Never expose them to the client.
+- Citations: the model may ONLY cite papers in the `papers` table (fetched
+  from Semantic Scholar/OpenAlex/arXiv). Never invent references.
+- The AI coaches and critiques; it does not ghostwrite the paper.
+- Model state changes are PROPOSED as patches; the user accepts/rejects.
+- Prompt assembly is a pure function in `lib/prompt/assemble.ts` with tests.
+- All tables use RLS scoped to `auth.uid()`.
+- Validate API inputs with zod. Validate model tool output before saving.
+- Small, reviewable commits. Explain what changed after each task.
+
+# Scope
+
+MVP = Phase 1 (Orient) and Phase 2 (Find your question) only.
+Do not build experiment or paper-writing features yet.

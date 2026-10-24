@@ -1,0 +1,36 @@
+---
+description: Supabase schema, RLS, and server-side data/API conventions
+globs: supabase/**/*.{sql,ts},lib/db/**/*.ts,lib/supabase/**/*.ts,src/app/api/**/*.ts,lib/prompt/**/*.ts
+alwaysApply: false
+---
+
+# Database and server APIs
+
+Postgres (Supabase) is the source of truth. Prompt context is assembled
+from stored project state, not chat history.
+
+Expected tables: users/profiles, projects (jsonb state), papers,
+decisions, messages, summaries. Every table has RLS scoped to
+`auth.uid()`.
+
+```sql
+-- ✅ GOOD
+create policy "own projects" on projects
+  for all using (auth.uid() = user_id);
+```
+
+- Anthropic and paper-search APIs run in server routes only.
+- Citations must reference rows in `papers` (Semantic Scholar/OpenAlex/arXiv).
+  Never persist invented references.
+- Model tools (`update_state`, `add_paper`, `log_decision`) return
+  **proposed** patches. Validate with zod before save; apply only after
+  user accept.
+- `lib/prompt/assemble.ts` stays a pure function with unit tests.
+
+```ts
+// ❌ BAD
+await anthropic.messages.create({ ... }) // in a client module
+
+// ✅ GOOD
+// src/app/api/chat/route.ts using server-only env keys
+```
