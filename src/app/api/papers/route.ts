@@ -31,6 +31,10 @@ export async function POST(request: Request) {
       abstract: input.abstract ?? null,
       url: input.url ?? null,
       citationCount: input.citationCount ?? null,
+      stance: input.stance,
+      doi: input.doi ?? null,
+      publicationYear: input.publicationYear ?? input.year ?? null,
+      openAccessUrl: input.openAccessUrl ?? null,
     });
     return Response.json({ paper }, { status: 201 });
   } catch (error) {

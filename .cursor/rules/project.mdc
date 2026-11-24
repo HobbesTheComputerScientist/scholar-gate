@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Research Coach
 
-Web app that guides undergrads through starting an AI/ML research paper.
+Web app that guides undergrads through starting a research paper (Any Topic).
 Core differentiator: the AI never loses project context. Structured project
 state in Postgres is the source of truth; assemble prompts from it on every
 call. Do NOT rely on chat history for memory.
@@ -13,7 +13,7 @@ call. Do NOT rely on chat history for memory.
 # Stack
 
 Next.js App Router, TypeScript (strict), Supabase (auth, Postgres, RLS),
-Anthropic API from server routes only. Tailwind + shadcn/ui.
+Google Gemini (`@google/genai`) from server routes only. Tailwind + shadcn/ui.
 
 # Hard rules
 

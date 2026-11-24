@@ -31,6 +31,11 @@ create table if not exists public.papers (
   abstract text,
   url text,
   citation_count int,
+  stance text not null default 'neutral'
+    check (stance in ('supporting', 'conflicting', 'foundational', 'neutral')),
+  doi text,
+  publication_year int,
+  open_access_url text,
   created_at timestamptz not null default now(),
   unique (project_id, source, external_id)
 );
@@ -72,12 +77,27 @@ create table if not exists public.proposed_patches (
   created_at timestamptz not null default now()
 );
 
+-- Comprehension check a student must pass before entering Phase 2.
+create table if not exists public.orient_checks (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.projects (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  topic text not null,
+  questions_json jsonb not null default '[]'::jsonb,
+  student_answers_json jsonb not null default '[]'::jsonb,
+  score numeric(5, 2) not null default 0 check (score >= 0 and score <= 100),
+  passed boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
 create index if not exists projects_user_id_idx on public.projects (user_id);
 create index if not exists papers_project_id_idx on public.papers (project_id);
 create index if not exists messages_project_id_idx on public.messages (project_id, created_at);
 create index if not exists patches_project_pending_idx
   on public.proposed_patches (project_id)
   where status = 'pending';
+create index if not exists orient_checks_project_idx
+  on public.orient_checks (project_id, created_at desc);
 
 alter table public.profiles enable row level security;
 alter table public.projects enable row level security;
@@ -86,6 +106,7 @@ alter table public.decisions enable row level security;
 alter table public.messages enable row level security;
 alter table public.summaries enable row level security;
 alter table public.proposed_patches enable row level security;
+alter table public.orient_checks enable row level security;
 
 create policy "profiles are self"
   on public.profiles for all
@@ -119,6 +140,11 @@ create policy "summaries are own"
 
 create policy "patches are own"
   on public.proposed_patches for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+create policy "orient checks are own"
+  on public.orient_checks for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 

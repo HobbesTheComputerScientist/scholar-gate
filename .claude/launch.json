@@ -1,0 +1,43 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "port": 3000
+    },
+    {
+      "name": "dev-local",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "NEXT_PUBLIC_SUPABASE_URL=",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY=",
+        "GEMINI_API_KEY=",
+        "npx",
+        "next",
+        "dev",
+        "-p",
+        "3001"
+      ],
+      "port": 3001
+    },
+    {
+      "name": "dev-local-ai",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "NEXT_PUBLIC_SUPABASE_URL=",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY=",
+        "npx",
+        "next",
+        "dev",
+        "-p",
+        "3002"
+      ],
+      "port": 3002
+    }
+  ]
+}

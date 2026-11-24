@@ -27,6 +27,23 @@ export async function proxy(request: NextRequest) {
     },
   });
 
+  // Email confirmation links land on `/?code=...`. Exchange the code for a
+  // session cookie, then redirect to the same URL without the code.
+  const code = request.nextUrl.searchParams.get("code");
+  if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const target = request.nextUrl.clone();
+    target.searchParams.delete("code");
+    if (error) {
+      target.searchParams.set("auth_error", error.message);
+    }
+    const redirect = NextResponse.redirect(target);
+    for (const cookie of response.cookies.getAll()) {
+      redirect.cookies.set(cookie);
+    }
+    return redirect;
+  }
+
   await supabase.auth.getUser();
   return response;
 }

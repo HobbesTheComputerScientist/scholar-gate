@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import type {
   ChatMessage,
   Decision,
+  OrientCheck,
   Paper,
   Profile,
   Project,
@@ -19,6 +20,7 @@ type Store = {
   messages: Map<string, ChatMessage>;
   summaries: Map<string, Summary>;
   patches: Map<string, ProposedPatch>;
+  orientChecks: Map<string, OrientCheck>;
 };
 
 const globalForStore = globalThis as typeof globalThis & {
@@ -35,8 +37,10 @@ function store(): Store {
       messages: new Map(),
       summaries: new Map(),
       patches: new Map(),
+      orientChecks: new Map(),
     };
   }
+  globalForStore.__researchCoachStore.orientChecks ??= new Map();
   return globalForStore.__researchCoachStore;
 }
 
@@ -119,6 +123,9 @@ export const memoryRepo: DbRepo = {
     for (const [id, row] of store().patches) {
       if (row.projectId === projectId) store().patches.delete(id);
     }
+    for (const [id, row] of store().orientChecks) {
+      if (row.projectId === projectId) store().orientChecks.delete(id);
+    }
   },
 
   async listPapers(userId, projectId) {
@@ -131,6 +138,50 @@ export const memoryRepo: DbRepo = {
     const created: Paper = { ...paper, id: randomUUID(), createdAt: now() };
     store().papers.set(created.id, created);
     return created;
+  },
+
+  async updatePaperStance(userId, paperId, stance) {
+    const paper = store().papers.get(paperId);
+    if (!paper || paper.userId !== userId) {
+      throw new Error("Paper not found.");
+    }
+    const updated = { ...paper, stance };
+    store().papers.set(paperId, updated);
+    return updated;
+  },
+
+  async listOrientChecks(userId, projectId) {
+    return [...store().orientChecks.values()]
+      .filter((row) => row.userId === userId && row.projectId === projectId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
+
+  async getOrientCheck(userId, checkId) {
+    const check = store().orientChecks.get(checkId);
+    if (!check || check.userId !== userId) {
+      return null;
+    }
+    return check;
+  },
+
+  async insertOrientCheck(check) {
+    const created: OrientCheck = {
+      ...check,
+      id: randomUUID(),
+      createdAt: now(),
+    };
+    store().orientChecks.set(created.id, created);
+    return created;
+  },
+
+  async gradeOrientCheck(userId, checkId, result) {
+    const check = await this.getOrientCheck(userId, checkId);
+    if (!check) {
+      throw new Error("Orient check not found.");
+    }
+    const updated = { ...check, ...result };
+    store().orientChecks.set(checkId, updated);
+    return updated;
   },
 
   async listDecisions(userId, projectId) {

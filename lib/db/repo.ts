@@ -1,7 +1,9 @@
 import type {
   ChatMessage,
   Decision,
+  OrientCheck,
   Paper,
+  PaperStance,
   Profile,
   Project,
   ProjectState,
@@ -13,6 +15,11 @@ export type NewPaper = Omit<Paper, "id" | "createdAt">;
 export type NewDecision = Omit<Decision, "id" | "createdAt">;
 export type NewMessage = Omit<ChatMessage, "id" | "createdAt">;
 export type NewSummary = Omit<Summary, "id" | "createdAt">;
+export type NewOrientCheck = Omit<OrientCheck, "id" | "createdAt">;
+export type OrientCheckResult = Pick<
+  OrientCheck,
+  "studentAnswers" | "score" | "passed"
+>;
 export type NewPatch = Omit<ProposedPatch, "id" | "createdAt" | "status">;
 
 export type DbRepo = {
@@ -33,6 +40,20 @@ export type DbRepo = {
   deleteProject(userId: string, projectId: string): Promise<void>;
   listPapers(userId: string, projectId: string): Promise<Paper[]>;
   insertPaper(paper: NewPaper): Promise<Paper>;
+  updatePaperStance(
+    userId: string,
+    paperId: string,
+    stance: PaperStance,
+  ): Promise<Paper>;
+  /** Newest first. */
+  listOrientChecks(userId: string, projectId: string): Promise<OrientCheck[]>;
+  getOrientCheck(userId: string, checkId: string): Promise<OrientCheck | null>;
+  insertOrientCheck(check: NewOrientCheck): Promise<OrientCheck>;
+  gradeOrientCheck(
+    userId: string,
+    checkId: string,
+    result: OrientCheckResult,
+  ): Promise<OrientCheck>;
   listDecisions(userId: string, projectId: string): Promise<Decision[]>;
   insertDecision(decision: NewDecision): Promise<Decision>;
   listRecentMessages(

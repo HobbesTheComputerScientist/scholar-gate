@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -33,19 +33,25 @@ export function AuthModal({
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [wasOpen, setWasOpen] = useState(open);
 
-  useEffect(() => {
+  // Reset when the dialog opens (adjust state during render, not in an effect).
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) {
       setMode(defaultMode);
       setError(null);
+      setNotice(null);
     }
-  }, [open, defaultMode]);
+  }
 
   function resetForm() {
     setEmail("");
     setPassword("");
     setIsSubmitting(false);
     setError(null);
+    setNotice(null);
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -59,6 +65,7 @@ export function AuthModal({
     event.preventDefault();
     setIsSubmitting(true);
     setError(null);
+    setNotice(null);
 
     try {
       const response = await fetch("/api/auth", {
@@ -70,9 +77,21 @@ export function AuthModal({
           password,
         }),
       });
-      const body = (await response.json()) as { error?: string };
+      const body = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        needsConfirmation?: boolean;
+      };
       if (!response.ok) {
         throw new Error(body.error ?? "Could not authenticate.");
+      }
+      if (body.needsConfirmation) {
+        setPassword("");
+        setIsSubmitting(false);
+        setMode("signIn");
+        setNotice(
+          `Check ${email.trim()} for a confirmation link. After you open it you'll be signed in here.`,
+        );
+        return;
       }
       resetForm();
       onOpenChange(false);
@@ -96,8 +115,8 @@ export function AuthModal({
           <DialogTitle>{isSignIn ? "Sign in" : "Create account"}</DialogTitle>
           <DialogDescription>
             {isSignIn
-              ? "Sign in to keep Project Brain state across sessions."
-              : "Register with email and password. Local demo accounts live in this server process until it restarts unless Supabase is configured."}
+              ? "Welcome back. Sign in to continue your projects."
+              : "Create an account with your email and a password."}
           </DialogDescription>
         </DialogHeader>
 
@@ -144,6 +163,14 @@ export function AuthModal({
               {error}
             </p>
           ) : null}
+          {notice ? (
+            <p
+              className="rounded-md border border-sky-400/30 bg-sky-400/10 px-3 py-2 text-sm text-sky-200"
+              role="status"
+            >
+              {notice}
+            </p>
+          ) : null}
 
           <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0">
             <Button type="submit" className="w-full" disabled={isSubmitting}>
@@ -160,7 +187,11 @@ export function AuthModal({
               variant="ghost"
               className="w-full"
               disabled={isSubmitting}
-              onClick={() => setMode(isSignIn ? "signUp" : "signIn")}
+              onClick={() => {
+                setMode(isSignIn ? "signUp" : "signIn");
+                setError(null);
+                setNotice(null);
+              }}
             >
               {isSignIn
                 ? "Need an account? Sign up"

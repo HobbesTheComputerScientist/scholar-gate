@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -42,7 +42,11 @@ export function NewProjectModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const [wasOpen, setWasOpen] = useState(open);
+
+  // Clear the form when the dialog closes (adjust state during render).
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (!open) {
       setName("");
       setInterest("");
@@ -50,7 +54,7 @@ export function NewProjectModal({
       setError(null);
       setIsSubmitting(false);
     }
-  }, [open]);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -89,8 +93,8 @@ export function NewProjectModal({
         <DialogHeader>
           <DialogTitle>Start a research project</DialogTitle>
           <DialogDescription>
-            MVP covers Orient and Find your question only. The coach will not
-            write the paper.
+            Name your project and describe what you are curious about. You can
+            refine everything later.
           </DialogDescription>
         </DialogHeader>
 

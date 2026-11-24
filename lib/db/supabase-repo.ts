@@ -2,14 +2,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { parseProjectState } from "@/lib/db/schema";
 import type { DbRepo } from "@/lib/db/repo";
-import type {
-  ChatMessage,
-  Decision,
-  Paper,
-  Profile,
-  Project,
-  ProposedPatch,
-  Summary,
+import {
+  PAPER_STANCES,
+  type ChatMessage,
+  type Decision,
+  type OrientCheck,
+  type Paper,
+  type Profile,
+  type Project,
+  type ProposedPatch,
+  type Summary,
 } from "@/lib/db/types";
 
 function throwIfError(error: { message: string } | null) {
@@ -45,6 +47,31 @@ function mapPaper(row: Record<string, unknown>): Paper {
     url: row.url ? String(row.url) : null,
     citationCount:
       typeof row.citation_count === "number" ? row.citation_count : null,
+    stance: PAPER_STANCES.includes(row.stance as Paper["stance"])
+      ? (row.stance as Paper["stance"])
+      : "neutral",
+    doi: row.doi ? String(row.doi) : null,
+    publicationYear:
+      typeof row.publication_year === "number" ? row.publication_year : null,
+    openAccessUrl: row.open_access_url ? String(row.open_access_url) : null,
+    createdAt: String(row.created_at),
+  };
+}
+
+function mapOrientCheck(row: Record<string, unknown>): OrientCheck {
+  return {
+    id: String(row.id),
+    projectId: String(row.project_id),
+    userId: String(row.user_id),
+    topic: String(row.topic),
+    questions: Array.isArray(row.questions_json)
+      ? (row.questions_json as OrientCheck["questions"])
+      : [],
+    studentAnswers: Array.isArray(row.student_answers_json)
+      ? (row.student_answers_json as OrientCheck["studentAnswers"])
+      : [],
+    score: Number(row.score ?? 0),
+    passed: row.passed === true,
     createdAt: String(row.created_at),
   };
 }
@@ -206,11 +233,85 @@ export function createSupabaseRepo(client: SupabaseClient): DbRepo {
           abstract: paper.abstract,
           url: paper.url,
           citation_count: paper.citationCount,
+          stance: paper.stance,
+          doi: paper.doi,
+          publication_year: paper.publicationYear,
+          open_access_url: paper.openAccessUrl,
         })
         .select()
         .single();
       throwIfError(error);
       return mapPaper(data as Record<string, unknown>);
+    },
+
+    async updatePaperStance(userId, paperId, stance) {
+      const { data, error } = await client
+        .from("papers")
+        .update({ stance })
+        .eq("user_id", userId)
+        .eq("id", paperId)
+        .select()
+        .single();
+      throwIfError(error);
+      return mapPaper(data as Record<string, unknown>);
+    },
+
+    async listOrientChecks(userId, projectId) {
+      const { data, error } = await client
+        .from("orient_checks")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: false });
+      throwIfError(error);
+      return (data ?? []).map((row) =>
+        mapOrientCheck(row as Record<string, unknown>),
+      );
+    },
+
+    async getOrientCheck(userId, checkId) {
+      const { data, error } = await client
+        .from("orient_checks")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("id", checkId)
+        .maybeSingle();
+      throwIfError(error);
+      return data ? mapOrientCheck(data as Record<string, unknown>) : null;
+    },
+
+    async insertOrientCheck(check) {
+      const { data, error } = await client
+        .from("orient_checks")
+        .insert({
+          user_id: check.userId,
+          project_id: check.projectId,
+          topic: check.topic,
+          questions_json: check.questions,
+          student_answers_json: check.studentAnswers,
+          score: check.score,
+          passed: check.passed,
+        })
+        .select()
+        .single();
+      throwIfError(error);
+      return mapOrientCheck(data as Record<string, unknown>);
+    },
+
+    async gradeOrientCheck(userId, checkId, result) {
+      const { data, error } = await client
+        .from("orient_checks")
+        .update({
+          student_answers_json: result.studentAnswers,
+          score: result.score,
+          passed: result.passed,
+        })
+        .eq("user_id", userId)
+        .eq("id", checkId)
+        .select()
+        .single();
+      throwIfError(error);
+      return mapOrientCheck(data as Record<string, unknown>);
     },
 
     async listDecisions(userId, projectId) {

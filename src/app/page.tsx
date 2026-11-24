@@ -8,12 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AuthModal } from "@/src/components/auth-modal";
 import { ItemList } from "@/src/components/item-list";
+import { Logo } from "@/src/components/logo";
 import { NewProjectModal } from "@/src/components/new-project-modal";
 import type { Project } from "@/lib/db/types";
 
 type MeResponse = {
   user: { id: string; email: string | null; displayName: string | null } | null;
-  persistence: "supabase" | "local";
+  persistence: "supabase" | "server" | "local";
+  error?: string;
 };
 
 const HIGHLIGHTS = [
@@ -25,12 +27,12 @@ const HIGHLIGHTS = [
   {
     icon: BookOpen,
     title: "Find your question",
-    body: "Ground a gap claim in papers you actually saved — never invented cites.",
+    body: "Read real papers, spot the gap, and land on a question you can defend.",
   },
   {
     icon: Sparkles,
     title: "Project Brain",
-    body: "Postgres state is memory. The coach proposes patches; you accept them.",
+    body: "Your project notes, saved papers, and decisions in one place. Nothing changes without your OK.",
   },
 ] as const;
 
@@ -40,14 +42,25 @@ export default function DashboardPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
 
   const loadMe = useCallback(async () => {
-    const response = await fetch("/api/me");
-    const body = (await response.json()) as MeResponse;
-    setMe(body);
-    return body;
+    try {
+      const response = await fetch("/api/me");
+      const body = (await response.json()) as MeResponse;
+      setMe(body);
+      setAuthError(
+        response.ok ? null : (body.error ?? "Could not check your session."),
+      );
+      return body;
+    } catch {
+      const body: MeResponse = { user: null, persistence: "local" };
+      setMe(body);
+      setAuthError("Could not reach the server to check your session.");
+      return body;
+    }
   }, []);
 
   const loadProjects = useCallback(async () => {
@@ -78,7 +91,22 @@ export default function DashboardPage() {
 
   useEffect(() => {
     void (async () => {
+      // Error from an email-confirmation redirect (see src/proxy.ts).
+      const params = new URLSearchParams(window.location.search);
+      const redirectError = params.get("auth_error");
+      if (redirectError) {
+        params.delete("auth_error");
+        const query = params.toString();
+        window.history.replaceState(
+          null,
+          "",
+          window.location.pathname + (query ? `?${query}` : ""),
+        );
+      }
       const current = await loadMe();
+      if (redirectError) {
+        setAuthError(`Email confirmation failed: ${redirectError}`);
+      }
       if (current.user) {
         await loadProjects();
       }
@@ -86,7 +114,14 @@ export default function DashboardPage() {
   }, [loadMe, loadProjects]);
 
   async function handleAuthed() {
-    await loadMe();
+    const current = await loadMe();
+    if (!current.user) {
+      setAuthError(
+        (current.error ? `${current.error} ` : "") +
+          "Sign-in succeeded but no session was found. Check that cookies are allowed for this site.",
+      );
+      return;
+    }
     await loadProjects();
   }
 
@@ -106,15 +141,15 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-full bg-muted/30">
-      <header className="border-b bg-background">
+    <div className="min-h-full bg-slate-950">
+      <header className="border-b border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <p className="text-sm font-semibold">Research Coach</p>
+          <Logo />
           <div className="flex items-center gap-2">
             {me?.user ? (
               <>
                 <span className="hidden text-xs text-muted-foreground sm:inline">
-                  {me.user.email} · {me.persistence}
+                  {me.user.email}
                 </span>
                 <Button type="button" size="sm" variant="outline" onClick={() => void handleSignOut()}>
                   Sign out
@@ -130,17 +165,13 @@ export default function DashboardPage() {
         <div className="mx-auto max-w-6xl px-4 pb-12 sm:px-6 lg:px-8">
           <div className="grid gap-10 lg:grid-cols-[1.2fr_1fr] lg:items-center">
             <div className="flex flex-col gap-5">
-              <p className="inline-flex w-fit items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                <Sparkles className="size-3.5" aria-hidden />
-                Phase 1–2 MVP · AI never loses project context
-              </p>
               <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                Start an AI/ML research question, not a ghostwritten paper.
+                Find your own research question, not a ghostwritten paper.
               </h1>
               <p className="max-w-xl text-lg text-muted-foreground">
-                Structured Project Brain in Postgres is the source of truth.
-                Prompts are assembled from it. You accept or reject every state
-                change.
+                A coach for starting research in any field. It helps you get
+                oriented, read real papers, and land on a question you can
+                defend. You accept or reject every change to your project.
               </p>
               <div className="flex flex-wrap gap-3 pt-1">
                 <Button
@@ -165,8 +196,8 @@ export default function DashboardPage() {
             </div>
             <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
               {HIGHLIGHTS.map(({ icon: Icon, title, body }) => (
-                <div key={title} className="rounded-xl border bg-card p-4 shadow-sm">
-                  <Icon className="mb-2 size-5 text-primary" aria-hidden />
+                <div key={title} className="rounded-xl border border-slate-800 bg-slate-900 p-4 shadow-lg shadow-black/20">
+                  <Icon className="mb-2 size-5 text-sky-400" aria-hidden />
                   <p className="text-sm font-medium">{title}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{body}</p>
                 </div>
@@ -177,6 +208,24 @@ export default function DashboardPage() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+        {me?.user && me.persistence === "server" ? (
+          <p
+            role="status"
+            className="mb-6 rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100"
+          >
+            Your account is live, but projects are saved on this server only
+            and reset when it restarts. They will be stored permanently once
+            the database is upgraded.
+          </p>
+        ) : null}
+        {authError ? (
+          <p
+            role="alert"
+            className="mb-6 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+          >
+            {authError}
+          </p>
+        ) : null}
         <section className="space-y-4">
           <div>
             <h2 className="text-lg font-semibold">Your research projects</h2>

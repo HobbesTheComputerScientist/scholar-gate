@@ -93,7 +93,7 @@ export function localCoach(input: AssembleInput): LocalCoachResult {
     } else {
       lines.push(
         papers.length < 3
-          ? `You have ${papers.length} saved paper(s). Search Semantic Scholar in the Brain panel and save at least three before treating the gap as evidence. I will not invent citations.`
+          ? `You have ${papers.length} saved paper(s). Search OpenAlex in the Brain panel (use Foundational and Counter-evidence modes too) and save at least three before treating the gap as evidence. I will not invent citations.`
           : "Critique the question for undergrad scope: data access, compute, and whether the gap is actually supported by your saved papers. I won't draft the paper.",
       );
     }

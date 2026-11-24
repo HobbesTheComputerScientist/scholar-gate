@@ -1,0 +1,81 @@
+import { cn } from "@/lib/utils";
+
+/**
+ * Owl of Athena: the Greek emblem of wisdom and learning (as on the Athenian
+ * tetradrachm). Keep in sync with src/app/icon.svg.
+ */
+export function LogoMark({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 64 64"
+      className={cn("size-8", className)}
+      role="img"
+      aria-label="Research Coach owl logo"
+    >
+      <defs>
+        <linearGradient id="rc-owl-tile" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#1e1b4b" />
+          <stop offset="1" stopColor="#0c4a6e" />
+        </linearGradient>
+        <linearGradient id="rc-owl-body" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#7dd3fc" />
+          <stop offset="1" stopColor="#818cf8" />
+        </linearGradient>
+      </defs>
+      <rect width="64" height="64" rx="14" fill="url(#rc-owl-tile)" />
+      <OwlPaths />
+    </svg>
+  );
+}
+
+function OwlPaths() {
+  return (
+    <g>
+      {/* olive branch perch (Athena) */}
+      <path
+        d="M9 55.5 C22 51.5 42 51.5 55 55.5"
+        fill="none"
+        stroke="#86efac"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <ellipse cx="13.5" cy="52.6" rx="3.4" ry="1.4" fill="#86efac" transform="rotate(-30 13.5 52.6)" />
+      <ellipse cx="19.5" cy="56.4" rx="3.4" ry="1.4" fill="#86efac" transform="rotate(20 19.5 56.4)" />
+      <ellipse cx="50.5" cy="52.6" rx="3.4" ry="1.4" fill="#86efac" transform="rotate(30 50.5 52.6)" />
+      <ellipse cx="44.5" cy="56.4" rx="3.4" ry="1.4" fill="#86efac" transform="rotate(-20 44.5 56.4)" />
+      {/* body with ear tufts */}
+      <path
+        d="M17 11 L25 17 Q32 14.5 39 17 L47 11 L46.5 28 C49 42 41.5 52 32 52 C22.5 52 15 42 17.5 28 Z"
+        fill="url(#rc-owl-body)"
+      />
+      {/* chest feathers */}
+      <path
+        d="M26 41 l3 2.5 l3 -2.5 l3 2.5 l3 -2.5 M28 46 l2 2 l2 -2 l2 2 l2 -2"
+        fill="none"
+        stroke="#1e1b4b"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity="0.55"
+      />
+      {/* eyes */}
+      <circle cx="25.5" cy="27.5" r="7" fill="#0f172a" />
+      <circle cx="38.5" cy="27.5" r="7" fill="#0f172a" />
+      <circle cx="25.5" cy="27.5" r="3.4" fill="#e0f2fe" />
+      <circle cx="38.5" cy="27.5" r="3.4" fill="#e0f2fe" />
+      <circle cx="26.4" cy="26.6" r="1.3" fill="#0f172a" />
+      <circle cx="39.4" cy="26.6" r="1.3" fill="#0f172a" />
+      {/* beak */}
+      <path d="M32 31.5 L34.6 35 L32 39 L29.4 35 Z" fill="#fbbf24" />
+    </g>
+  );
+}
+
+export function Logo({ className }: { className?: string }) {
+  return (
+    <span className={cn("inline-flex items-center gap-2", className)}>
+      <LogoMark />
+      <span className="text-sm font-semibold tracking-tight">Research Coach</span>
+    </span>
+  );
+}
