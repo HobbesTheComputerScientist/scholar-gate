@@ -3,7 +3,7 @@
 # Research Coach
 
 Web app that coaches undergrads through **starting** a research paper (any field).
-MVP is **Phase 1 (Orient)** and **Phase 2 (Find your question)** only. No
+Scope is **Phase 1 (Orient)** and **Phase 2 (Find your question)**. No
 experiments, methods, or paper drafting.
 
 **Differentiator:** the model never treats chat history as memory. Structured
@@ -11,8 +11,8 @@ project state in Postgres (Project Brain) is the source of truth. Every model
 call is assembled from DB rows by a pure function.
 
 **Stack:** Next.js 16 App Router (`src/app`), TypeScript strict, Tailwind v4 +
-shadcn/ui, Supabase (auth + Postgres + RLS), Google Gemini (`@google/genai`)
-from server routes only.
+shadcn/ui, Supabase (auth + Postgres + RLS), Groq (primary) and Google Gemini
+(`@google/genai`, fallback) from server routes only, OpenAlex for papers.
 
 **Hard rules**
 - API keys only in server code. Never `NEXT_PUBLIC_` for secrets.
@@ -33,7 +33,9 @@ from server routes only.
 
 ```
 .
+├── README.md                    setup and overview
 ├── docs/PRODUCT.md              Product spec (phases, gates, tables)
+├── supabase/diagnose_schema.sql read-only check of a live DB's schema
 ├── supabase/migrations/0001_init.sql          full schema (fresh DBs)
 ├── supabase/migrations/0002_scholar_gate_mvp.sql upgrade for existing DBs
 ├── supabase/migrations/0003_reconcile_live_schema.sql align a drifted live DB
@@ -57,23 +59,27 @@ from server routes only.
 │   │               ├── advance/route.ts phase gate
 │   │               └── orient-check/route.ts comprehension check
 │   └── components/                feature UI (not shadcn primitives)
-├── components/ui/                 shadcn button, card, dialog, input, textarea, table
+├── components/ui/                 shadcn button, card, dialog, input, textarea
 ├── lib/
 │   ├── db/                        types, zod schemas, repo interface
 │   │   ├── memory-repo.ts         local fallback store
 │   │   ├── supabase-repo.ts       live Postgres
 │   │   └── server.ts              picks repo from env
-│   ├── supabase/                  browser/server clients
+│   ├── supabase/                  server client + public env
 │   ├── auth/                      session + local cookie auth
 │   ├── prompt/assemble.ts         pure prompt builder
 │   ├── phases/gates.ts            exit criteria
 │   ├── phases/milestones.ts       current milestone helpers
-│   ├── orient/check.ts            comprehension check questions + grader
-│   ├── ai/                        tools, Gemini stream, localCoach
+│   ├── orient/check.ts            template questions + heuristic effort gate
+│   ├── orient/ai-check.ts         AI-written questions + rubric grading
+│   ├── ai/groq.ts / gemini.ts     providers (fallback chains, streaming)
+│   ├── ai/run-coach.ts            tool loop; ai/tools.ts declarations
+│   ├── ai/readings.ts             recommend_readings → real OpenAlex hits
+│   ├── ai/local-coach.ts          offline heuristic coach
 │   ├── papers/openalex.ts         OpenAlex /works client + abstract decoder
 │   ├── patches/apply.ts
 │   └── summaries/rolling.ts       every 20 messages
-└── .env.example
+└── .env.example                 committed template (real keys: .env.local)
 ```
 
 ## Database schema
@@ -146,17 +152,17 @@ cannot change `phase`; `update_state` strips it. Phase 2 is unlocked only by
 candidate questions, passed comprehension check (score ≥ 75; `advance` also
 verifies a passed `orient_checks` row).
 
-**Comprehension check** (`lib/orient/ai-check.ts`): Gemini writes 3
+**Comprehension check** (`lib/orient/ai-check.ts`): the model (Groq, else Gemini) writes 3
 subject-matter questions (explain a mechanism, apply it to a scenario,
 compare/misconception) from the topic, experience level, and what the coach
 taught, plus 1 project question. Each has a hidden rubric (stripped from API
 responses) and a hint. Grading: the heuristic gate in `lib/orient/check.ts`
-(≥25 words, not copied) runs first, then Gemini scores each answer 0–100
-against its rubric with feedback; the mean must be ≥ 75. If Gemini is down,
-both steps fall back to the deterministic template questions/heuristic.
+(≥25 words, not copied) runs first, then the model scores each answer 0–100
+against its rubric with feedback; the mean must be ≥ 75. If no model is
+available, both steps fall back to the template questions and heuristic.
 
 **Find-question exit:** chosen question, novelty claim, ≥3 saved papers, ≥1
-decision. MVP has no Phase 3 UI.
+decision. There is no Phase 3 UI.
 
 ## How `assemble.ts` builds prompts
 
@@ -178,14 +184,17 @@ summary.
 
 **User string:** recent DB messages + the new student message.
 
-Chat does **not** send a growing Gemini transcript. Persistence is Brain +
-papers + decisions + summaries.
+Chat does **not** send a growing transcript. Persistence is Brain + papers +
+decisions + summaries.
 
 ## Coach tools
 
-`lib/ai/run-coach.ts` runs a tool loop (max 3 rounds): tool results are sent
-back to Gemini as `functionResponse` parts so it keeps writing. Later rounds
-stay on the same model (Gemini 3 thought signatures).
+`lib/ai/run-coach.ts` runs a tool loop: tool results go back to the model so
+it keeps writing. Groq (OpenAI-style `tool` messages, 2 tool rounds then a
+final no-tools round; may switch Groq models mid-turn after a 429) is tried
+first, then Gemini (`functionResponse` parts, up to 3 rounds, later rounds
+pinned to the same model for thought signatures), then `local-coach.ts`.
+Mid-stream failures keep and save the partial reply with a notice.
 
 Applied or executed by the server:
 
@@ -208,29 +217,30 @@ Proposed patches, validated in `lib/db/schema.ts` before insert:
 | Route | Live behavior |
 | --- | --- |
 | `POST /api/auth` | Supabase auth if configured, else local users |
-| `GET /api/me` | session + `persistence: supabase \| local` |
+| `GET /api/me` | session + `persistence: supabase \| server \| local` |
 | `GET/POST /api/projects` | list / create |
 | `GET/PATCH/DELETE /api/projects/[id]` | workspace + Brain edits |
 | `POST /api/projects/[id]/advance` | phase gate |
-| `POST /api/chat` | SSE: text deltas + pending patches |
+| `POST /api/chat` | SSE: `text`, `patch`, `profile`, `notice`, `error`, `done` |
 | `GET /api/papers/search` | OpenAlex `/works` (live HTTP); `mode=general\|foundational\|conflicting` |
 | `POST /api/papers` | save paper to project |
 | `PATCH /api/papers/[id]` | set paper stance |
 | `GET/POST /api/projects/[id]/orient-check` | list checks / `start` / `submit` answers |
 | `POST /api/patches/[id]` | accept / reject |
 
-## Live vs stubbed
+## Live vs fallback
 
-| Piece | Live | Fallback / stub |
+| Piece | Live | Fallback |
 | --- | --- | --- |
 | UI workspace (3 panels) | Live | — |
 | Auth + DB | Supabase when both public env vars set | In-memory repo + cookie auth |
 | Coach (primary) | Groq via `lib/ai/groq.ts` when `GROQ_API_KEY` is set: `GROQ_MODEL` (optional) then `openai/gpt-oss-120b`, `qwen/qwen3.8-27b`; same tool loop (OpenAI-style `tool` messages). Also used for the comprehension check (JSON mode) and rolling summaries | Gemini chain below |
 | Coach (fallback) | Gemini via `lib/ai/gemini.ts` when `GEMINI_API_KEY` is set: `GEMINI_MODEL` (default `gemini-3.8-flash`), then 3.7 / 3.6 / 3.5-flash / 3.5-flash-lite on 503/429/timeout (15s to first chunk; failing models skipped for 2 min) | `lib/ai/local-coach.ts` heuristics, with an on-screen notice |
 | Paper search | OpenAlex `/works` (`lib/papers/openalex.ts`) | Optional `OPENALEX_API_KEY` sent as `api_key`; keyless requests still work |
-| Semantic Scholar / arXiv fetch | **Not implemented** (source enum kept for older rows) | — |
-| Rolling summary | Every 20 messages; Gemini `gemini-3.5-flash-lite` (`GEMINI_SUMMARY_MODEL`) when the API key is set | Deterministic Brain/papers/decisions recap if the key is missing |
-| Zod / Gemini SDK | `zod` + `@google/genai` | — |
+| Rolling summary | Every 20 messages; Groq, else Gemini `GEMINI_SUMMARY_MODEL` (default `gemini-3.5-flash-lite`) | Deterministic Brain/papers/decisions recap |
+
+Semantic Scholar and arXiv fetching are not implemented; the `source` enum
+keeps those values so older rows still load.
 
 ## Paper search (OpenAlex)
 
@@ -251,8 +261,8 @@ the short work id (`W…`) as `external_id`.
 
 ## Environment variables
 
-See `.env.example`. Plug values into **`.env.local`** (already present in this
-repo — do not commit it). Restart the dev server after edits.
+See `.env.example` (committed template). Put real values in **`.env.local`**
+(git-ignored; never commit it). Restart the dev server after edits.
 
 Mode switches are **env presence**, not source edits:
 

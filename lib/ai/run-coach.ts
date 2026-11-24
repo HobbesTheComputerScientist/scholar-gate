@@ -7,7 +7,6 @@ import {
 } from "@google/genai";
 
 import {
-  DEFAULT_GEMINI_MODEL,
   DEFAULT_GEMINI_SUMMARY_MODEL,
   GeminiUnavailableError,
   generateWithFallback,
@@ -35,7 +34,6 @@ import type { PaperHit } from "@/lib/papers/openalex";
 import type { AssembleInput } from "@/lib/prompt/assemble";
 import { assemblePrompt } from "@/lib/prompt/assemble";
 
-export { DEFAULT_GEMINI_MODEL, DEFAULT_GEMINI_SUMMARY_MODEL, getGeminiApiKey };
 
 export type CoachEvent =
   | { type: "text"; delta: string }

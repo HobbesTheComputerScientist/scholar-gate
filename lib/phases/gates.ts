@@ -93,11 +93,3 @@ export function allPassed(checks: GateCheck[]): boolean {
 export function canEnterFindQuestion(state: ProjectState): boolean {
   return allPassed(evaluateOrientGates(state));
 }
-
-export function isFindQuestionComplete(
-  state: ProjectState,
-  papers: Paper[],
-  decisionCount: number,
-): boolean {
-  return allPassed(evaluateFindQuestionGates(state, papers, decisionCount));
-}

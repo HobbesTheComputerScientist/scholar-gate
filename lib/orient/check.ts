@@ -92,7 +92,7 @@ export type OrientCheckGrade = {
 };
 
 /**
- * Heuristic grader (MVP stub): an answer counts when it is long enough and is
+ * Heuristic grader (effort gate and offline fallback): an answer counts when it is long enough and is
  * not mostly a copy of the question or of text already in the Brain.
  */
 export function gradeOrientCheck(

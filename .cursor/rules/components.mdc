@@ -10,11 +10,12 @@ alwaysApply: false
   primitives in `components/ui/`; app features live in `src/components/`.
 - Target three-panel layout: phase stepper, chat, editable Project Brain.
 - Project Brain shows structured Postgres state. Edits are user-owned;
-  AI changes appear as proposed patches to accept or reject — never silent
-  writes from the model.
-- The AI coaches and critiques in chat. Do not add paper-drafting,
-  experiment, or ghostwriting UI. MVP is Phase 1 (Orient) and Phase 2
-  (Find your question) only.
+  AI research-progress changes appear as proposed patches to accept or
+  reject. Only profile fields may be filled in directly by the coach, and
+  the UI says so with a chat notice.
+- The AI teaches and critiques in chat (Markdown via `src/components/markdown.tsx`).
+  Do not add paper-drafting, experiment, or ghostwriting UI. Scope is
+  Phase 1 (Orient) and Phase 2 (Find your question).
 
 ```tsx
 // ❌ BAD — apply model output directly
@@ -24,6 +25,6 @@ setProject(await chatResponse.state);
 setProposedPatch(validatedPatch);
 ```
 
-- Do not put Anthropic/Supabase service-role keys or model calls in
-  client components. Call `/api/*` routes instead.
+- Do not put API keys (Groq, Gemini, Supabase service role) or model calls
+  in client components. Call `/api/*` routes instead.
 - Reuse existing dialogs, cards, buttons, and inputs rather than new kits.

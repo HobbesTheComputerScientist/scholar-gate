@@ -9,8 +9,8 @@ alwaysApply: false
 Postgres (Supabase) is the source of truth. Prompt context is assembled
 from stored project state, not chat history.
 
-Expected tables: users/profiles, projects (jsonb state), papers,
-decisions, messages, summaries. Every table has RLS scoped to
+Tables: profiles, projects (jsonb state), papers, orient_checks,
+decisions, messages, summaries, proposed_patches. Every table has RLS scoped to
 `auth.uid()`.
 
 ```sql
@@ -19,17 +19,18 @@ create policy "own projects" on projects
   for all using (auth.uid() = user_id);
 ```
 
-- Anthropic and paper-search APIs run in server routes only.
-- Citations must reference rows in `papers` (Semantic Scholar/OpenAlex/arXiv).
-  Never persist invented references.
-- Model tools (`update_state`, `add_paper`, `log_decision`) return
+- Model (Groq/Gemini) and paper-search (OpenAlex) calls run server-side only.
+- Citations must reference rows in `papers` or real OpenAlex results from
+  `recommend_readings`. Never persist invented references.
+- Model tools `update_state`, `add_paper`, `log_decision` return
   **proposed** patches. Validate with zod before save; apply only after
-  user accept.
+  user accept. `update_profile` (profile fields only) is applied directly.
+- New migrations must be idempotent; see `supabase/migrations/`.
 - `lib/prompt/assemble.ts` stays a pure function with unit tests.
 
 ```ts
 // ❌ BAD
-await anthropic.messages.create({ ... }) // in a client module
+await fetch("https://api.groq.com/...", { headers: { Authorization: key } }) // in a client module
 
 // ✅ GOOD
 // src/app/api/chat/route.ts using server-only env keys

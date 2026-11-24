@@ -128,5 +128,3 @@ export async function readLocalUserId(): Promise<string | null> {
 export function getLocalUser(userId: string): LocalUser | null {
   return authStore().users.get(userId) ?? null;
 }
-
-export const LOCAL_SESSION_COOKIE = COOKIE;

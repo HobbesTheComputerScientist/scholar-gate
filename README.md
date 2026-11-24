@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Research Coach
 
-## Getting Started
+An AI coach that helps undergraduates **start** a research project in any
+field: learn the subject, read real papers, and land on a research question
+they can defend. It teaches and critiques; it never writes the paper.
 
-First, run the development server:
+## What it does
+
+- **Phase 1: Orient.** The coach teaches the topic in depth (intuition,
+  mechanism, worked example, misconceptions, self-check), recommends real
+  papers from OpenAlex, and fills in the student's profile as they talk.
+  A comprehension check with AI-written subject questions and graded
+  feedback gates Phase 2.
+- **Phase 2: Find your question.** Search papers (general, foundational,
+  counter-evidence), tag each one's stance, find gaps, and commit to one
+  question with a novelty claim.
+- **Project Brain.** Structured project state is the source of truth, not
+  chat history. Every model call is rebuilt from it. Research-progress
+  changes from the coach arrive as cards the student accepts or rejects.
+
+## Stack
+
+Next.js 16 (App Router) · TypeScript · Tailwind v4 + shadcn/ui · Supabase
+(auth, Postgres, RLS) · Groq and Gemini for the coach · OpenAlex for papers ·
+zod · Vitest.
+
+## Run it locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local   # then fill in the keys you have
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Every key is optional:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Set | You get |
+| --- | --- |
+| nothing | local accounts, in-memory data, a built-in heuristic coach |
+| `GROQ_API_KEY` and/or `GEMINI_API_KEY` | the real AI coach (Groq first, Gemini fallback) |
+| `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase sign-in and Postgres storage |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Supabase
 
-## Learn More
+New database: run `supabase/migrations/0001_init.sql` in the SQL editor.
+Existing database from an older schema: run
+`supabase/migrations/0003_reconcile_live_schema.sql` (idempotent;
+`supabase/diagnose_schema.sql` shows what is missing). Until the schema
+matches, the app keeps project data in server memory and says so on screen.
 
-To learn more about Next.js, take a look at the following resources:
+## Scripts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run dev     # dev server
+npm test        # unit tests (Vitest)
+npm run lint    # ESLint
+npm run build   # production build
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Docs
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `docs/PRODUCT.md`: product spec (phases, gates, data model)
+- `CLAUDE.md`: architecture and conventions for contributors and AI agents

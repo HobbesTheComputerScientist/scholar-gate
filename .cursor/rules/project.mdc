@@ -5,23 +5,27 @@ alwaysApply: true
 
 # Research Coach
 
-Web app that guides undergrads through starting a research paper (Any Topic).
-Core differentiator: the AI never loses project context. Structured project
-state in Postgres is the source of truth; assemble prompts from it on every
-call. Do NOT rely on chat history for memory.
+Web app that guides undergrads through starting a research project in any
+field. Core differentiator: the AI never loses project context. Structured
+project state in Postgres (Project Brain) is the source of truth; assemble
+prompts from it on every call. Do NOT rely on chat history for memory.
 
 # Stack
 
-Next.js App Router, TypeScript (strict), Supabase (auth, Postgres, RLS),
-Google Gemini (`@google/genai`) from server routes only. Tailwind + shadcn/ui.
+Next.js 16 App Router, TypeScript (strict), Supabase (auth, Postgres, RLS),
+Groq (primary) and Google Gemini (fallback) from server routes only,
+OpenAlex for papers. Tailwind v4 + shadcn/ui. See CLAUDE.md for details.
 
 # Hard rules
 
 - API keys only in server code. Never expose them to the client.
-- Citations: the model may ONLY cite papers in the `papers` table (fetched
-  from Semantic Scholar/OpenAlex/arXiv). Never invent references.
-- The AI coaches and critiques; it does not ghostwrite the paper.
-- Model state changes are PROPOSED as patches; the user accepts/rejects.
+- Citations: only papers in the `papers` table or returned by the
+  `recommend_readings` tool (real OpenAlex results). Never invent references.
+- The AI teaches and critiques; it does not ghostwrite the paper, question,
+  or novelty claim.
+- Research-progress changes are PROPOSED as patches the user accepts or
+  rejects. Only profile fields (interest, background, experience level,
+  constraints) may be written directly by the coach (`update_profile`).
 - Prompt assembly is a pure function in `lib/prompt/assemble.ts` with tests.
 - All tables use RLS scoped to `auth.uid()`.
 - Validate API inputs with zod. Validate model tool output before saving.
@@ -29,5 +33,5 @@ Google Gemini (`@google/genai`) from server routes only. Tailwind + shadcn/ui.
 
 # Scope
 
-MVP = Phase 1 (Orient) and Phase 2 (Find your question) only.
-Do not build experiment or paper-writing features yet.
+Phase 1 (Orient) and Phase 2 (Find your question) only.
+Do not build experiment or paper-writing features.

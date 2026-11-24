@@ -10,12 +10,14 @@ Use Tailwind v4 utility classes and shadcn/ui tokens from
 `src/app/globals.css`. Do not add a second CSS framework or ad-hoc
 global stylesheets.
 
-- Prefer existing `button`, `card`, `dialog`, `input`, `table` primitives.
+- Prefer existing `button`, `card`, `dialog`, `input`, `textarea` primitives.
 - Style via `className` + `cn()` (`clsx` + `tailwind-merge`).
-- Map colors to semantic tokens (`bg-background`, `text-muted-foreground`,
-  `border-border`, `bg-primary`) so light/dark CSS variables keep working.
+- The app is always dark (Dark Blue academic theme). Semantic tokens map to
+  it: `bg-background` = slate-950, `bg-card` = slate-900, borders slate-800,
+  `primary` = sky-400. Use `sky-400` for active state and `indigo-500` for
+  completed steps and phase gates.
 - Keep the three-panel workspace readable: stepper, chat, Project Brain
-  should share spacing and type scale, not custom one-off palettes.
+  share spacing and type scale.
 
 ```tsx
 // ❌ BAD

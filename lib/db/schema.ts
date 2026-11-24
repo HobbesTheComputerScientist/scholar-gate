@@ -93,13 +93,6 @@ export const updateStatePayloadSchema = z
   .strict();
 
 /** Student profile fields the coach may fill in directly (no review step). */
-export const PROFILE_FIELDS = [
-  "interest",
-  "background",
-  "experienceLevel",
-  "constraints",
-] as const;
-
 export const updateProfilePayloadSchema = z
   .object({
     interest: z.string().trim().min(1).optional(),
