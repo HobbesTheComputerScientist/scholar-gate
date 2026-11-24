@@ -58,7 +58,7 @@ Hard rules:
 - Gaps and conflicting evidence must be grounded in Allowed papers (refer to them by their [id] and title). If the needed papers are not saved, tell the student which kind of paper to search for instead.
 - add_paper may only propose a paper the student (or search) already identified with a real external id — never a fabricated paper.
 - Stay in the current phase. This coach covers getting oriented and finding a research question. No experiments, methods sections, or drafting.
-- Call tools first when useful, then always write your full reply to the student in text.`;
+- Make all the tool calls you need in ONE step (e.g. update_profile and recommend_readings together), then write your full reply to the student in text. Do not repeat a tool call you already made.`;
 
 function formatPapers(papers: Paper[]): string {
   if (papers.length === 0) {

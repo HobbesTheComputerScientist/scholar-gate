@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { GeminiUnavailableError, generateWithFallback } from "@/lib/ai/gemini";
+import { GroqUnavailableError, getGroqApiKey, groqJson } from "@/lib/ai/groq";
 import type {
   ChatMessage,
   OrientCheckAnswer,
@@ -64,6 +65,34 @@ function context(state: ProjectState, recent: Pick<ChatMessage, "role" | "conten
     .join("\n\n");
 }
 
+/** JSON from Groq (fast) when configured, otherwise Gemini with a schema. */
+async function jsonCompletion(params: {
+  system: string;
+  user: string;
+  geminiSchema: Record<string, unknown>;
+}): Promise<unknown> {
+  if (getGroqApiKey()) {
+    try {
+      return await groqJson({
+        system: `${params.system}\n\nRespond with a JSON object matching this JSON Schema:\n${JSON.stringify(params.geminiSchema)}`,
+        user: params.user,
+      });
+    } catch (error) {
+      if (!(error instanceof GroqUnavailableError)) throw error;
+    }
+  }
+  const { response } = await generateWithFallback({
+    contents: params.user,
+    config: {
+      systemInstruction: params.system,
+      responseMimeType: "application/json",
+      responseJsonSchema: params.geminiSchema,
+      maxOutputTokens: 4096,
+    },
+  });
+  return parseJson(response.text);
+}
+
 function parseJson(text: string | undefined): unknown {
   if (!text) return null;
   const trimmed = text.trim().replace(/^```(?:json)?\s*|\s*```$/g, "");
@@ -86,10 +115,9 @@ export async function generateOrientCheckQuestions(
   };
 
   try {
-    const { response } = await generateWithFallback({
-      contents: context(state, recent),
-      config: {
-        systemInstruction: `You write comprehension-check questions for an undergraduate who is learning the subject matter of their research topic before choosing a research question.
+    const raw = await jsonCompletion({
+      user: context(state, recent),
+      system: `You write comprehension-check questions for an undergraduate who is learning the subject matter of their research topic before choosing a research question.
 
 Write exactly ${SUBJECT_QUESTIONS} questions that test real understanding of the SUBJECT MATTER of the topic (core concepts, mechanisms, key methods or evidence in the field), pitched at the student's experience level:
 1. Explain a core concept or mechanism in their own words.
@@ -102,8 +130,7 @@ For each question give:
 - rubric: the 2-4 key points a correct answer must contain (hidden from the student; used for grading).
 - hint: a short nudge on what to think about, WITHOUT giving the answer.
 Return JSON only.`,
-        responseMimeType: "application/json",
-        responseJsonSchema: {
+      geminiSchema: {
           type: "object",
           properties: {
             questions: {
@@ -123,10 +150,8 @@ Return JSON only.`,
           },
           required: ["questions"],
         },
-        maxOutputTokens: 4096,
-      },
     });
-    const parsed = generatedSchema.parse(parseJson(response.text));
+    const parsed = generatedSchema.parse(raw);
     const subject: OrientCheckQuestion[] = parsed.questions
       .slice(0, SUBJECT_QUESTIONS)
       .map((q, index) => ({
@@ -138,7 +163,12 @@ Return JSON only.`,
       }));
     return { questions: [...subject, projectQuestion], source: "ai" };
   } catch (error) {
-    if (!(error instanceof GeminiUnavailableError) && !(error instanceof z.ZodError) && !(error instanceof SyntaxError)) {
+    if (
+      !(error instanceof GeminiUnavailableError) &&
+      !(error instanceof GroqUnavailableError) &&
+      !(error instanceof z.ZodError) &&
+      !(error instanceof SyntaxError)
+    ) {
       console.error("[orient-check] question generation failed:", error);
     }
     return {
@@ -188,15 +218,13 @@ export async function gradeOrientCheckWithAI(
       rubric: q.rubric,
       answer: answers.find((a) => a.questionId === q.id)?.answer ?? "",
     }));
-    const { response } = await generateWithFallback({
-      contents: JSON.stringify({ topic: state.interest, items: payload }),
-      config: {
-        systemInstruction: `You grade an undergraduate's comprehension-check answers about their research topic (experience level: ${EXPERIENCE_LEVEL_LABELS[state.experienceLevel]}).
+    const raw = await jsonCompletion({
+      user: JSON.stringify({ topic: state.interest, items: payload }),
+      system: `You grade an undergraduate's comprehension-check answers about their research topic (experience level: ${EXPERIENCE_LEVEL_LABELS[state.experienceLevel]}).
 For each item, score 0-100 for how well the answer demonstrates understanding of the rubric's key points (accuracy matters more than wording; partial credit is fine; an answer that is vague, wrong, or off-topic scores low).
 Give 1-3 sentences of specific, encouraging feedback: what was right, what was missing or wrong, and what to review. Do NOT reveal a full model answer.
 Return JSON only.`,
-        responseMimeType: "application/json",
-        responseJsonSchema: {
+      geminiSchema: {
           type: "object",
           properties: {
             results: {
@@ -214,10 +242,8 @@ Return JSON only.`,
           },
           required: ["results"],
         },
-        maxOutputTokens: 4096,
-      },
     });
-    const graded = gradedSchema.parse(parseJson(response.text));
+    const graded = gradedSchema.parse(raw);
 
     const perQuestion = questions.map((q) => {
       const gate = heuristic.perQuestion.find((row) => row.questionId === q.id);
@@ -248,7 +274,10 @@ Return JSON only.`,
       gradedBy: "ai",
     };
   } catch (error) {
-    if (!(error instanceof GeminiUnavailableError)) {
+    if (
+      !(error instanceof GeminiUnavailableError) &&
+      !(error instanceof GroqUnavailableError)
+    ) {
       console.error("[orient-check] AI grading failed:", error);
     }
     return { ...heuristic, perQuestion: heuristicRows, gradedBy: "heuristic" };

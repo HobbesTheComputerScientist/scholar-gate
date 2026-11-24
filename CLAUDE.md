@@ -225,7 +225,8 @@ Proposed patches, validated in `lib/db/schema.ts` before insert:
 | --- | --- | --- |
 | UI workspace (3 panels) | Live | — |
 | Auth + DB | Supabase when both public env vars set | In-memory repo + cookie auth |
-| Coach | Gemini via `lib/ai/gemini.ts` when `GEMINI_API_KEY` is set: `GEMINI_MODEL` (default `gemini-3.8-flash`), then 3.7 / 3.6 / 3.5-flash / 3.5-flash-lite on 503/429/timeout (15s to first chunk; failing models skipped for 2 min) | `lib/ai/local-coach.ts` heuristics, with an on-screen notice |
+| Coach (primary) | Groq via `lib/ai/groq.ts` when `GROQ_API_KEY` is set: `GROQ_MODEL` (optional) then `openai/gpt-oss-120b`, `qwen/qwen3.8-27b`; same tool loop (OpenAI-style `tool` messages). Also used for the comprehension check (JSON mode) and rolling summaries | Gemini chain below |
+| Coach (fallback) | Gemini via `lib/ai/gemini.ts` when `GEMINI_API_KEY` is set: `GEMINI_MODEL` (default `gemini-3.8-flash`), then 3.7 / 3.6 / 3.5-flash / 3.5-flash-lite on 503/429/timeout (15s to first chunk; failing models skipped for 2 min) | `lib/ai/local-coach.ts` heuristics, with an on-screen notice |
 | Paper search | OpenAlex `/works` (`lib/papers/openalex.ts`) | Optional `OPENALEX_API_KEY` sent as `api_key`; keyless requests still work |
 | Semantic Scholar / arXiv fetch | **Not implemented** (source enum kept for older rows) | — |
 | Rolling summary | Every 20 messages; Gemini `gemini-3.5-flash-lite` (`GEMINI_SUMMARY_MODEL`) when the API key is set | Deterministic Brain/papers/decisions recap if the key is missing |
@@ -256,5 +257,6 @@ repo — do not commit it). Restart the dev server after edits.
 Mode switches are **env presence**, not source edits:
 
 - Supabase live DB: both `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- Fast coach: `GROQ_API_KEY` (primary when set; `GROQ_MODEL` optional)
 - Live coach: `GEMINI_API_KEY` (`GEMINI_MODEL` optional, default `gemini-3.8-flash`)
 - Paper search quota: `OPENALEX_API_KEY` (optional; search is live either way)
