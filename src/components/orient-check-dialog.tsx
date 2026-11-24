@@ -20,7 +20,12 @@ import {
 } from "@/lib/orient/check";
 import { cn } from "@/lib/utils";
 
-type QuestionResult = { questionId: string; passed: boolean; reason: string };
+type QuestionResult = {
+  questionId: string;
+  passed: boolean;
+  reason: string;
+  score?: number;
+};
 
 type Stage =
   | { kind: "intro" }
@@ -78,7 +83,8 @@ export function OrientCheckDialog({
     setError(null);
     try {
       const { check } = await post({ action: "start" });
-      // Keep earlier drafts on retake (question ids are stable) so students revise, not retype.
+      // Each attempt gets fresh questions, so start with empty answers.
+      setAnswers({});
       setStage({ kind: "answering", check });
     } catch (startError) {
       setError(
@@ -122,20 +128,23 @@ export function OrientCheckDialog({
         <DialogHeader>
           <DialogTitle>Orient comprehension check</DialogTitle>
           <DialogDescription>
-            Explain your topic in your own words. You need{" "}
-            {ORIENT_CHECK_PASS_SCORE}% to enter Phase 2. The coach can&apos;t
-            answer these for you.
+            Show you understand the subject behind your topic. You need{" "}
+            {ORIENT_CHECK_PASS_SCORE}% to enter Phase 2.
           </DialogDescription>
         </DialogHeader>
 
         {stage.kind === "intro" ? (
           <div className="space-y-3 text-sm">
             <p>
-              You&apos;ll get four short questions built from your Project
-              Brain: your topic, one candidate question, and your constraints.
-              Each answer needs at least {MIN_ANSWER_WORDS} words of your own
-              explanation. Copying the question or your Brain text won&apos;t
-              count.
+              You&apos;ll get four questions: three about the subject matter of
+              your topic (core concepts, how they work, and how they compare),
+              written for your experience level and what the coach has taught
+              you, plus one about how you would study your own question.
+            </p>
+            <p>
+              Answer each in at least {MIN_ANSWER_WORDS} words, in your own
+              words. Each answer is graded on understanding, and you&apos;ll get
+              feedback on what to review.
             </p>
             <p className="text-muted-foreground">
               You can retake it as many times as you need.
@@ -157,9 +166,11 @@ export function OrientCheckDialog({
                   >
                     {index + 1}. {question.prompt}
                   </label>
-                  <p className="text-xs text-muted-foreground">
-                    A good answer: {question.rubric}
-                  </p>
+                  {question.hint ? (
+                    <p className="text-xs text-muted-foreground">
+                      Hint: {question.hint}
+                    </p>
+                  ) : null}
                   <Textarea
                     id={`oc-${question.id}`}
                     rows={4}
@@ -212,7 +223,7 @@ export function OrientCheckDialog({
                   (row) => row.questionId === question.id,
                 );
                 return (
-                  <li key={question.id} className="flex gap-2 text-xs">
+                  <li key={question.id} className="flex gap-2 text-xs leading-relaxed">
                     <span
                       className={cn(
                         "mt-0.5 size-3.5 shrink-0 rounded-sm border",
@@ -223,8 +234,14 @@ export function OrientCheckDialog({
                       aria-hidden
                     />
                     <span>
-                      <span className="font-medium">Q{index + 1}.</span>{" "}
-                      {result?.passed ? "Counted." : result?.reason}
+                      <span className="font-medium">
+                        Q{index + 1}
+                        {typeof result?.score === "number"
+                          ? ` · ${result.score}%`
+                          : ""}
+                        .
+                      </span>{" "}
+                      {result?.reason ?? "Not graded."}
                     </span>
                   </li>
                 );
@@ -238,12 +255,12 @@ export function OrientCheckDialog({
         <DialogFooter>
           {stage.kind === "intro" ? (
             <Button type="button" disabled={busy} onClick={() => void start()}>
-              {busy ? "Preparing…" : "Start check"}
+              {busy ? "Writing your questions…" : "Start check"}
             </Button>
           ) : null}
           {stage.kind === "answering" ? (
             <Button type="submit" form="orient-check-form" disabled={busy}>
-              {busy ? "Grading…" : "Submit answers"}
+              {busy ? "Grading your answers…" : "Submit answers"}
             </Button>
           ) : null}
           {stage.kind === "result" ? (

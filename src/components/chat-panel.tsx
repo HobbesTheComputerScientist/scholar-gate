@@ -4,15 +4,19 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Markdown } from "@/src/components/markdown";
 import type { ChatMessage, ProposedPatch } from "@/lib/db/types";
 
 export function ChatPanel({
   messages,
   sending,
+  notices,
   onSend,
 }: {
   messages: ChatMessage[];
   sending: boolean;
+  /** Short status lines from the last turn (fallbacks, profile updates). */
+  notices: string[];
   onSend: (message: string) => Promise<void>;
 }) {
   const [draft, setDraft] = useState("");
@@ -60,12 +64,26 @@ export function ChatPanel({
             <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               {message.role === "user" ? "You" : "Coach"}
             </p>
-            <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+            {message.role === "assistant" ? (
+              message.content ? (
+                <Markdown>{message.content}</Markdown>
+              ) : (
+                <ThinkingDots />
+              )
+            ) : (
+              <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+            )}
           </article>
         ))}
-        {sending ? (
-          <p className="text-xs text-muted-foreground">Coach is thinking…</p>
-        ) : null}
+        {notices.map((notice) => (
+          <p
+            key={notice}
+            role="status"
+            className="rounded-md border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-xs text-indigo-100"
+          >
+            {notice}
+          </p>
+        ))}
       </div>
       <form className="mt-3 space-y-2 border-t border-slate-800 pt-3" onSubmit={handleSubmit}>
         <Textarea
@@ -85,6 +103,20 @@ export function ChatPanel({
   );
 }
 
+function ThinkingDots() {
+  return (
+    <span className="flex items-center gap-1 py-1" aria-label="Coach is thinking">
+      {[0, 1, 2].map((dot) => (
+        <span
+          key={dot}
+          className="size-1.5 animate-bounce rounded-full bg-sky-400"
+          style={{ animationDelay: `${dot * 150}ms` }}
+        />
+      ))}
+    </span>
+  );
+}
+
 export async function streamChat(
   projectId: string,
   message: string,
@@ -93,6 +125,7 @@ export async function streamChat(
     delta?: string;
     patch?: ProposedPatch;
     message?: string;
+    fields?: string[];
   }) => void,
 ) {
   const response = await fetch("/api/chat", {

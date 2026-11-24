@@ -18,7 +18,13 @@ from server routes only.
 - API keys only in server code. Never `NEXT_PUBLIC_` for secrets.
 - Cite only papers in the `papers` table. Never invent references.
 - Coach and critique; do not ghostwrite.
-- Model state changes are **proposed** patches; the user accepts/rejects.
+- Research-progress changes (questions, novelty, takeaways, gaps, papers,
+  decisions, milestones) are **proposed** patches; the user accepts/rejects.
+  Exception: profile fields (`interest`, `background`, `experienceLevel`,
+  `constraints`) are filled in directly by the coach's `update_profile` tool.
+- Coach teaches in depth (intuition, mechanism, worked example,
+  misconceptions, self-check) and recommends readings only via
+  `recommend_readings` (real OpenAlex results).
 - `lib/prompt/assemble.ts` stays a pure function with tests.
 - All tables use RLS scoped to `auth.uid()`.
 - Validate API input and tool output with zod.
@@ -138,8 +144,16 @@ cannot change `phase`; `update_state` strips it. Phase 2 is unlocked only by
 
 **Orient exit:** specific interest, background ≥ 20 chars, ≥1 constraint, ≥2
 candidate questions, passed comprehension check (score ≥ 75; `advance` also
-verifies a passed `orient_checks` row). The grader in `lib/orient/check.ts`
-is a heuristic stub (length + not copied from the question/Brain).
+verifies a passed `orient_checks` row).
+
+**Comprehension check** (`lib/orient/ai-check.ts`): Gemini writes 3
+subject-matter questions (explain a mechanism, apply it to a scenario,
+compare/misconception) from the topic, experience level, and what the coach
+taught, plus 1 project question. Each has a hidden rubric (stripped from API
+responses) and a hint. Grading: the heuristic gate in `lib/orient/check.ts`
+(≥25 words, not copied) runs first, then Gemini scores each answer 0–100
+against its rubric with feedback; the mean must be ≥ 75. If Gemini is down,
+both steps fall back to the deterministic template questions/heuristic.
 
 **Find-question exit:** chosen question, novelty claim, ≥3 saved papers, ≥1
 decision. MVP has no Phase 3 UI.
@@ -169,7 +183,19 @@ papers + decisions + summaries.
 
 ## Coach tools
 
-Validated in `lib/db/schema.ts` before insert:
+`lib/ai/run-coach.ts` runs a tool loop (max 3 rounds): tool results are sent
+back to Gemini as `functionResponse` parts so it keeps writing. Later rounds
+stay on the same model (Gemini 3 thought signatures).
+
+Applied or executed by the server:
+
+- `update_profile` — interest / background / experienceLevel / constraints,
+  merged into `projects.state` immediately (`profile` SSE event)
+- `recommend_readings` — 1–3 queries; `lib/ai/readings.ts` searches OpenAlex
+  (foundational mode), returns the real hits to the model, and appends a
+  "Readings to learn from" block to the stored reply
+
+Proposed patches, validated in `lib/db/schema.ts` before insert:
 
 - `update_state` — Brain field patch (no `phase`)
 - `add_paper` — propose a real paper with source + external id
@@ -199,7 +225,7 @@ Validated in `lib/db/schema.ts` before insert:
 | --- | --- | --- |
 | UI workspace (3 panels) | Live | — |
 | Auth + DB | Supabase when both public env vars set | In-memory repo + cookie auth |
-| Coach | Gemini `generateContentStream` when `GEMINI_API_KEY` is set (`GEMINI_MODEL`, default `gemini-3.8-flash`) | `lib/ai/local-coach.ts` heuristics |
+| Coach | Gemini via `lib/ai/gemini.ts` when `GEMINI_API_KEY` is set: `GEMINI_MODEL` (default `gemini-3.8-flash`), then 3.7 / 3.6 / 3.5-flash / 3.5-flash-lite on 503/429/timeout (15s to first chunk; failing models skipped for 2 min) | `lib/ai/local-coach.ts` heuristics, with an on-screen notice |
 | Paper search | OpenAlex `/works` (`lib/papers/openalex.ts`) | Optional `OPENALEX_API_KEY` sent as `api_key`; keyless requests still work |
 | Semantic Scholar / arXiv fetch | **Not implemented** (source enum kept for older rows) | — |
 | Rolling summary | Every 20 messages; Gemini `gemini-3.5-flash-lite` (`GEMINI_SUMMARY_MODEL`) when the API key is set | Deterministic Brain/papers/decisions recap if the key is missing |

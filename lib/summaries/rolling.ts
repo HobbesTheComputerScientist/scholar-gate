@@ -38,7 +38,10 @@ export async function maybeWriteRollingSummary(
   };
 
   const assembled = assemblePrompt(assembledInput);
-  const geminiSummary = await runRollingSummary(assembledInput);
+  // A busy model must not break the chat turn; fall back to the plain recap.
+  const geminiSummary = await runRollingSummary(assembledInput).catch(
+    () => null,
+  );
 
   const fallback = [
     `Summary at ${messageCount} messages.`,

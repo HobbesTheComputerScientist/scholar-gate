@@ -2,9 +2,52 @@ import type { FunctionDeclaration } from "@google/genai";
 
 export const coachTools: FunctionDeclaration[] = [
   {
+    name: "update_profile",
+    description:
+      "Fill in the student's profile directly from what they told you (applied immediately, no review). Use whenever the student reveals their topic of interest, background (courses, skills, experience), experience level, or practical constraints (time, compute, data, advisor). For constraints, send the FULL updated list, keeping earlier items.",
+    parametersJsonSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        interest: {
+          type: "string",
+          description: "Specific topic the student wants to study, in their terms.",
+        },
+        background: {
+          type: "string",
+          description:
+            "What the student already knows: courses, skills, projects. Summarize faithfully; do not embellish.",
+        },
+        experienceLevel: {
+          type: "string",
+          enum: ["brand_new", "some_familiarity", "intermediate", "advanced"],
+        },
+        constraints: { type: "array", items: { type: "string" } },
+      },
+    },
+  },
+  {
+    name: "recommend_readings",
+    description:
+      "Find REAL papers for the student to learn from. Give 1-3 short scholarly search queries (e.g. 'transformer attention survey', 'coral bleaching recovery review'). The app searches OpenAlex and shows the real results under your reply. Use this whenever you teach a concept or the student asks what to read. Never write paper titles yourself.",
+    parametersJsonSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["queries"],
+      properties: {
+        queries: {
+          type: "array",
+          items: { type: "string" },
+          minItems: 1,
+          maxItems: 3,
+        },
+      },
+    },
+  },
+  {
     name: "update_state",
     description:
-      "Propose a Project Brain patch. It is NOT saved until the student accepts. Do not include phase.",
+      "Propose a Project Brain patch for research-progress fields (candidate questions, chosen question, novelty claim, takeaways, gaps, conflict notes, open questions, milestones). It is NOT saved until the student accepts. Use update_profile for interest/background/experience/constraints. Do not include phase.",
     parametersJsonSchema: {
       type: "object",
       additionalProperties: false,
@@ -85,7 +128,7 @@ export const coachTools: FunctionDeclaration[] = [
   {
     name: "add_paper",
     description:
-      "Propose saving a real paper the student found (Semantic Scholar / OpenAlex / arXiv). Never invent a paper.",
+      "Propose saving a real paper the student found (OpenAlex / arXiv) with its real external id. Never invent a paper.",
     parametersJsonSchema: {
       type: "object",
       additionalProperties: false,

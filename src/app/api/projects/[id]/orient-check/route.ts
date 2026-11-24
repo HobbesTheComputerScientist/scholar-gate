@@ -5,12 +5,26 @@ import { handleApiError, jsonError } from "@/lib/api/http";
 import { orientCheckSubmitSchema } from "@/lib/db/schema";
 import { getRepo } from "@/lib/db/server";
 import {
-  buildOrientCheckQuestions,
-  gradeOrientCheck,
-} from "@/lib/orient/check";
+  generateOrientCheckQuestions,
+  gradeOrientCheckWithAI,
+} from "@/lib/orient/ai-check";
+import type { OrientCheck } from "@/lib/db/types";
 import { isInterestSpecific } from "@/lib/phases/gates";
 
 type Ctx = { params: Promise<{ id: string }> };
+
+/** Rubrics hold the expected key points; never send them to the browser. */
+function forClient(check: OrientCheck) {
+  return {
+    ...check,
+    questions: check.questions.map((question) => ({
+      id: question.id,
+      prompt: question.prompt,
+      hint: question.hint,
+      kind: question.kind,
+    })),
+  };
+}
 
 const postSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("start") }),
@@ -27,7 +41,7 @@ export async function GET(_request: Request, context: Ctx) {
       return jsonError("Project not found.", 404);
     }
     const checks = await repo.listOrientChecks(user.id, id);
-    return Response.json({ checks });
+    return Response.json({ checks: checks.map(forClient) });
   } catch (error) {
     return handleApiError(error);
   }
@@ -55,16 +69,24 @@ export async function POST(request: Request, context: Ctx) {
           400,
         );
       }
+      const recent = await repo.listRecentMessages(user.id, id, 12);
+      const { questions, source } = await generateOrientCheckQuestions(
+        project.state,
+        recent,
+      );
       const check = await repo.insertOrientCheck({
         userId: user.id,
         projectId: id,
         topic: project.state.interest.trim(),
-        questions: buildOrientCheckQuestions(project.state),
+        questions,
         studentAnswers: [],
         score: 0,
         passed: false,
       });
-      return Response.json({ check }, { status: 201 });
+      return Response.json(
+        { check: forClient(check), source },
+        { status: 201 },
+      );
     }
 
     const existing = await repo.getOrientCheck(user.id, input.checkId);
@@ -75,7 +97,7 @@ export async function POST(request: Request, context: Ctx) {
       return jsonError("This check was already submitted. Start a new one.", 400);
     }
 
-    const grade = gradeOrientCheck(
+    const grade = await gradeOrientCheckWithAI(
       existing.questions,
       input.answers,
       project.state,
@@ -95,8 +117,9 @@ export async function POST(request: Request, context: Ctx) {
     }
 
     return Response.json({
-      check,
+      check: forClient(check),
       perQuestion: grade.perQuestion,
+      gradedBy: grade.gradedBy,
       project: updatedProject,
     });
   } catch (error) {

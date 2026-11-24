@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AuthModal } from "@/src/components/auth-modal";
 import { ItemList } from "@/src/components/item-list";
+import { Logo } from "@/src/components/logo";
 import { NewProjectModal } from "@/src/components/new-project-modal";
 import type { Project } from "@/lib/db/types";
 
@@ -143,7 +144,7 @@ export default function DashboardPage() {
     <div className="min-h-full bg-slate-950">
       <header className="border-b border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <p className="text-sm font-semibold">Research Coach</p>
+          <Logo />
           <div className="flex items-center gap-2">
             {me?.user ? (
               <>

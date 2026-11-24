@@ -92,6 +92,32 @@ export const updateStatePayloadSchema = z
   })
   .strict();
 
+/** Student profile fields the coach may fill in directly (no review step). */
+export const PROFILE_FIELDS = [
+  "interest",
+  "background",
+  "experienceLevel",
+  "constraints",
+] as const;
+
+export const updateProfilePayloadSchema = z
+  .object({
+    interest: z.string().trim().min(1).optional(),
+    background: z.string().trim().min(1).optional(),
+    experienceLevel: experienceLevelSchema.optional(),
+    constraints: z.array(z.string().trim().min(1)).optional(),
+  })
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "update_profile needs at least one field.",
+  });
+
+export const recommendReadingsPayloadSchema = z
+  .object({
+    queries: z.array(z.string().trim().min(2).max(200)).min(1).max(3),
+  })
+  .strict();
+
 export const addPaperPayloadSchema = z
   .object({
     source: z.enum(["semantic_scholar", "openalex", "arxiv"]),
@@ -165,6 +191,8 @@ export const orientCheckQuestionSchema = z.object({
   id: z.string().min(1),
   prompt: z.string().min(1),
   rubric: z.string(),
+  hint: z.string().optional(),
+  kind: z.enum(["subject", "project"]).optional(),
 });
 
 export const orientCheckAnswerSchema = z.object({

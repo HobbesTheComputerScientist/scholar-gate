@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { ChatPanel, streamChat } from "@/src/components/chat-panel";
+import { LogoMark } from "@/src/components/logo";
 import { PhaseStepper } from "@/src/components/phase-stepper";
 import { ProjectBrain } from "@/src/components/project-brain";
 import {
@@ -33,6 +34,7 @@ export function WorkspaceShell({ projectId }: { projectId: string }) {
   const [sending, setSending] = useState(false);
   const [advancing, setAdvancing] = useState(false);
   const [busyPatchId, setBusyPatchId] = useState<string | null>(null);
+  const [chatNotices, setChatNotices] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     const response = await fetch(`/api/projects/${projectId}`);
@@ -80,8 +82,34 @@ export function WorkspaceShell({ projectId }: { projectId: string }) {
       ],
     });
     setSending(true);
+    setChatNotices([]);
+    let streamError: string | null = null;
     try {
       await streamChat(projectId, message, (event) => {
+        if (event.type === "error") {
+          streamError = event.message ?? "The coach could not answer.";
+          setChatNotices((current) => [
+            ...current,
+            "The coach ran into a problem answering. Please try again in a moment.",
+          ]);
+        }
+        if (event.type === "notice" && event.message) {
+          setChatNotices((current) => [...current, event.message!]);
+        }
+        if (event.type === "profile" && event.fields?.length) {
+          const labels: Record<string, string> = {
+            interest: "topic",
+            background: "background",
+            experienceLevel: "experience level",
+            constraints: "constraints",
+          };
+          setChatNotices((current) => [
+            ...current,
+            `Coach updated your profile: ${event.fields!
+              .map((field) => labels[field] ?? field)
+              .join(", ")}.`,
+          ]);
+        }
         if (event.type === "text" && event.delta) {
           setPayload((current) => {
             if (!current) return current;
@@ -103,9 +131,27 @@ export function WorkspaceShell({ projectId }: { projectId: string }) {
           );
         }
       });
+      if (streamError) {
+        console.error("[chat]", streamError);
+      }
+      // Always resync: the server saves partial replies, papers, and profile.
       await load();
     } catch (sendError) {
-      setError(sendError instanceof Error ? sendError.message : "Chat failed.");
+      const text =
+        sendError instanceof Error ? sendError.message : "Chat failed.";
+      // Show the failure in the coach bubble instead of leaving it blank.
+      setPayload((current) =>
+        current
+          ? {
+              ...current,
+              messages: current.messages.map((row) =>
+                row.id === assistantId && !row.content
+                  ? { ...row, content: `_The coach couldn't answer: ${text} Please try again._` }
+                  : row,
+              ),
+            }
+          : current,
+      );
     } finally {
       setSending(false);
     }
@@ -197,10 +243,15 @@ export function WorkspaceShell({ projectId }: { projectId: string }) {
             <Button asChild variant="ghost" size="sm" className="-ml-2 mb-1">
               <Link href="/">All projects</Link>
             </Button>
-            <h1 className="text-lg font-semibold tracking-tight">{project.name}</h1>
-            <p className="text-xs text-slate-400">
-              Research Coach
-            </p>
+            <div className="flex items-center gap-2.5">
+              <LogoMark className="size-7" />
+              <div>
+                <h1 className="text-lg font-semibold leading-tight tracking-tight">
+                  {project.name}
+                </h1>
+                <p className="text-xs text-slate-400">Research Coach</p>
+              </div>
+            </div>
           </div>
           <span
             className={
@@ -231,6 +282,7 @@ export function WorkspaceShell({ projectId }: { projectId: string }) {
           <ChatPanel
             messages={messages}
             sending={sending}
+            notices={chatNotices}
             onSend={handleSend}
           />
         </section>

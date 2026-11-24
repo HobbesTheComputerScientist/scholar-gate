@@ -146,8 +146,12 @@ export type Paper = {
 export type OrientCheckQuestion = {
   id: string;
   prompt: string;
-  /** What a passing answer must show; used by the grader, not shown as a model answer. */
+  /** What a passing answer must show; used by the grader, never sent to the client. */
   rubric: string;
+  /** Optional nudge shown to the student (never the answer). */
+  hint?: string;
+  /** "subject": tests the topic's subject matter; "project": tests their plan. */
+  kind?: "subject" | "project";
 };
 
 export type OrientCheckAnswer = {
