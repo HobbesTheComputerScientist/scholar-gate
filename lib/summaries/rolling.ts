@@ -1,3 +1,4 @@
+import { runRollingSummary } from "@/lib/ai/run-coach";
 import type { DbRepo } from "@/lib/db/repo";
 import type { Project } from "@/lib/db/types";
 import { assemblePrompt } from "@/lib/prompt/assemble";
@@ -25,7 +26,7 @@ export async function maybeWriteRollingSummary(
     repo.latestSummary(userId, project.id),
   ]);
 
-  const assembled = assemblePrompt({
+  const assembledInput = {
     projectName: project.name,
     state: project.state,
     papers,
@@ -34,9 +35,12 @@ export async function maybeWriteRollingSummary(
     recentMessages: recent,
     userMessage:
       "Write a concise rolling summary of progress (facts only from Brain, papers, and decisions). No new citations.",
-  });
+  };
 
-  const content = [
+  const assembled = assemblePrompt(assembledInput);
+  const geminiSummary = await runRollingSummary(assembledInput);
+
+  const fallback = [
     `Summary at ${messageCount} messages.`,
     `Phase: ${project.state.phase}.`,
     `Interest: ${project.state.interest || "(none)"}.`,
@@ -53,7 +57,7 @@ export async function maybeWriteRollingSummary(
   await repo.insertSummary({
     userId,
     projectId: project.id,
-    content,
+    content: geminiSummary ?? fallback,
     messageCountAt: messageCount,
   });
 }

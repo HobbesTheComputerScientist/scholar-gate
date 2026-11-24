@@ -1,11 +1,11 @@
-import type { Anthropic } from "@anthropic-ai/sdk";
+import type { FunctionDeclaration } from "@google/genai";
 
-export const coachTools: Anthropic.Messages.Tool[] = [
+export const coachTools: FunctionDeclaration[] = [
   {
     name: "update_state",
     description:
       "Propose a Project Brain patch. It is NOT saved until the student accepts. Do not include phase.",
-    input_schema: {
+    parametersJsonSchema: {
       type: "object",
       additionalProperties: false,
       properties: {
@@ -34,8 +34,14 @@ export const coachTools: Anthropic.Messages.Tool[] = [
             required: ["id", "text", "notes"],
           },
         },
-        chosenQuestion: { type: ["string", "null"] },
-        noveltyClaim: { type: ["string", "null"] },
+        chosenQuestion: {
+          type: "string",
+          description: "Chosen research question, or empty if none.",
+        },
+        noveltyClaim: {
+          type: "string",
+          description: "Novelty/gap claim, or empty if none.",
+        },
         openQuestions: { type: "array", items: { type: "string" } },
       },
     },
@@ -44,7 +50,7 @@ export const coachTools: Anthropic.Messages.Tool[] = [
     name: "add_paper",
     description:
       "Propose saving a real paper the student found (Semantic Scholar / OpenAlex / arXiv). Never invent a paper.",
-    input_schema: {
+    parametersJsonSchema: {
       type: "object",
       additionalProperties: false,
       required: ["source", "externalId", "title"],
@@ -56,10 +62,10 @@ export const coachTools: Anthropic.Messages.Tool[] = [
         externalId: { type: "string" },
         title: { type: "string" },
         authors: { type: "array", items: { type: "string" } },
-        year: { type: ["integer", "null"] },
-        abstract: { type: ["string", "null"] },
-        url: { type: ["string", "null"] },
-        citationCount: { type: ["integer", "null"] },
+        year: { type: "integer" },
+        abstract: { type: "string" },
+        url: { type: "string" },
+        citationCount: { type: "integer" },
       },
     },
   },
@@ -67,13 +73,13 @@ export const coachTools: Anthropic.Messages.Tool[] = [
     name: "log_decision",
     description:
       "Propose logging an explicit student decision (for example choosing a question).",
-    input_schema: {
+    parametersJsonSchema: {
       type: "object",
       additionalProperties: false,
       required: ["summary"],
       properties: {
         summary: { type: "string" },
-        rationale: { type: ["string", "null"] },
+        rationale: { type: "string" },
       },
     },
   },

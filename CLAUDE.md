@@ -11,7 +11,8 @@ project state in Postgres (Project Brain) is the source of truth. Every model
 call is assembled from DB rows by a pure function.
 
 **Stack:** Next.js 16 App Router (`src/app`), TypeScript strict, Tailwind v4 +
-shadcn/ui, Supabase (auth + Postgres + RLS), Anthropic from server routes only.
+shadcn/ui, Supabase (auth + Postgres + RLS), Google Gemini (`@google/genai`)
+from server routes only.
 
 **Hard rules**
 - API keys only in server code. Never `NEXT_PUBLIC_` for secrets.
@@ -56,7 +57,7 @@ shadcn/ui, Supabase (auth + Postgres + RLS), Anthropic from server routes only.
 │   ├── auth/                      session + local cookie auth
 │   ├── prompt/assemble.ts         pure prompt builder
 │   ├── phases/gates.ts            exit criteria
-│   ├── ai/                        tools, Anthropic stream, localCoach
+│   ├── ai/                        tools, Gemini stream, localCoach
 │   ├── papers/semantic-scholar.ts
 │   ├── patches/apply.ts
 │   └── summaries/rolling.ts       every 20 messages
@@ -132,7 +133,7 @@ papers + decisions + latest summary.
 
 **User string:** recent DB messages + the new student message.
 
-Chat does **not** send a growing Anthropic transcript. Persistence is Brain +
+Chat does **not** send a growing Gemini transcript. Persistence is Brain +
 papers + decisions + summaries.
 
 ## Coach tools
@@ -165,12 +166,11 @@ Validated in `lib/db/schema.ts` before insert:
 | --- | --- | --- |
 | UI workspace (3 panels) | Live | — |
 | Auth + DB | Supabase when both public env vars set | In-memory repo + cookie auth |
-| Coach | Anthropic Messages stream when `ANTHROPIC_API_KEY` is set | `lib/ai/local-coach.ts` heuristics |
+| Coach | Gemini `generateContentStream` when `GEMINI_API_KEY` is set (`GEMINI_MODEL`, default `gemini-3.8-flash`) | `lib/ai/local-coach.ts` heuristics |
 | Paper search | Semantic Scholar Graph API | Optional `SEMANTIC_SCHOLAR_API_KEY` for quota; no key still calls S2 |
 | OpenAlex / arXiv fetch | **Not implemented** (source enum only) | — |
-| Gemini | **Not referenced** | Do not set `GEMINI_API_KEY`; it is unused |
-| Rolling summary | Writes a `summaries` row every 20 messages | Uses assembled context, not a second model call unless Anthropic is used for chat |
-| Zod / Anthropic SDK | Imported | Add `zod` and `@anthropic-ai/sdk` to `package.json` if missing, then `npm install` |
+| Rolling summary | Every 20 messages; Gemini `gemini-3.5-flash-lite` (`GEMINI_SUMMARY_MODEL`) when the API key is set | Deterministic Brain/papers/decisions recap if the key is missing |
+| Zod / Gemini SDK | `zod` + `@google/genai` | — |
 
 ## Environment variables
 
@@ -180,4 +180,4 @@ repo — do not commit it). Restart the dev server after edits.
 Mode switches are **env presence**, not source edits:
 
 - Supabase live DB: both `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- Live coach: `ANTHROPIC_API_KEY`
+- Live coach: `GEMINI_API_KEY` (`GEMINI_MODEL` optional, default `gemini-3.8-flash`)
