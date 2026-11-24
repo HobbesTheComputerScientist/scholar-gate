@@ -17,6 +17,17 @@ const bodySchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("signOut") }),
 ]);
 
+function sessionUser(
+  user: { id: string; email?: string | null } | null,
+) {
+  if (!user) return null;
+  return {
+    id: user.id,
+    email: user.email ?? null,
+    displayName: user.email?.split("@")[0] ?? null,
+  };
+}
+
 export async function POST(request: Request) {
   try {
     const json = bodySchema.parse(await request.json());
@@ -37,23 +48,33 @@ export async function POST(request: Request) {
         return jsonError("Supabase is not configured.", 500);
       }
       if (json.mode === "signUp") {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email: json.email,
           password: json.password,
+          options: { emailRedirectTo: new URL("/", request.url).toString() },
         });
         if (error) {
           return jsonError(error.message, 400);
         }
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: json.email,
-          password: json.password,
-        });
-        if (error) {
-          return jsonError(error.message, 400);
+        if (!data.session) {
+          // Email confirmation is on: no session until the link is clicked.
+          return Response.json({ ok: true, needsConfirmation: true });
         }
+        return Response.json({ ok: true, user: sessionUser(data.user) });
       }
-      return Response.json({ ok: true });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: json.email,
+        password: json.password,
+      });
+      if (error) {
+        return jsonError(
+          error.code === "email_not_confirmed"
+            ? "Confirm your email first: open the link we sent you, then sign in."
+            : error.message,
+          400,
+        );
+      }
+      return Response.json({ ok: true, user: sessionUser(data.user) });
     }
 
     const user =

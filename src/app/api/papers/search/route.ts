@@ -1,7 +1,7 @@
 import { requireUser } from "@/lib/auth/session";
 import { handleApiError } from "@/lib/api/http";
 import { paperSearchInputSchema } from "@/lib/db/schema";
-import { searchSemanticScholar } from "@/lib/papers/semantic-scholar";
+import { searchOpenAlex } from "@/lib/papers/openalex";
 
 export async function GET(request: Request) {
   try {
@@ -12,9 +12,13 @@ export async function GET(request: Request) {
       limit: url.searchParams.get("limit")
         ? Number(url.searchParams.get("limit"))
         : undefined,
+      mode: url.searchParams.get("mode") ?? undefined,
     });
-    const results = await searchSemanticScholar(input.query, input.limit ?? 8);
-    return Response.json({ results });
+    const results = await searchOpenAlex(input.query, {
+      mode: input.mode,
+      limit: input.limit ?? 8,
+    });
+    return Response.json({ results, mode: input.mode });
   } catch (error) {
     return handleApiError(error);
   }

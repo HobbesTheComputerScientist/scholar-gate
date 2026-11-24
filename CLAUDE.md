@@ -2,7 +2,7 @@
 
 # Research Coach
 
-Web app that coaches undergrads through **starting** an AI/ML research paper.
+Web app that coaches undergrads through **starting** a research paper (any field).
 MVP is **Phase 1 (Orient)** and **Phase 2 (Find your question)** only. No
 experiments, methods, or paper drafting.
 
@@ -28,7 +28,9 @@ from server routes only.
 ```
 .
 ├── docs/PRODUCT.md              Product spec (phases, gates, tables)
-├── supabase/migrations/0001_init.sql
+├── supabase/migrations/0001_init.sql          full schema (fresh DBs)
+├── supabase/migrations/0002_scholar_gate_mvp.sql upgrade for existing DBs
+├── supabase/migrations/0003_reconcile_live_schema.sql align a drifted live DB
 ├── src/
 │   ├── proxy.ts                 Next.js 16 proxy (Supabase cookie refresh)
 │   ├── app/
@@ -39,13 +41,15 @@ from server routes only.
 │   │       ├── me/route.ts
 │   │       ├── chat/route.ts          SSE coach
 │   │       ├── papers/route.ts        save paper
-│   │       ├── papers/search/route.ts Semantic Scholar
+│   │       ├── papers/[id]/route.ts   PATCH stance
+│   │       ├── papers/search/route.ts OpenAlex (?mode=)
 │   │       ├── patches/[id]/route.ts  accept/reject
 │   │       └── projects/
 │   │           ├── route.ts           list + create
 │   │           └── [id]/
 │   │               ├── route.ts       workspace GET/PATCH/DELETE
-│   │               └── advance/route.ts phase gate
+│   │               ├── advance/route.ts phase gate
+│   │               └── orient-check/route.ts comprehension check
 │   └── components/                feature UI (not shadcn primitives)
 ├── components/ui/                 shadcn button, card, dialog, input, textarea, table
 ├── lib/
@@ -57,8 +61,10 @@ from server routes only.
 │   ├── auth/                      session + local cookie auth
 │   ├── prompt/assemble.ts         pure prompt builder
 │   ├── phases/gates.ts            exit criteria
+│   ├── phases/milestones.ts       current milestone helpers
+│   ├── orient/check.ts            comprehension check questions + grader
 │   ├── ai/                        tools, Gemini stream, localCoach
-│   ├── papers/semantic-scholar.ts
+│   ├── papers/openalex.ts         OpenAlex /works client + abstract decoder
 │   ├── patches/apply.ts
 │   └── summaries/rolling.ts       every 20 messages
 └── .env.example
@@ -66,14 +72,19 @@ from server routes only.
 
 ## Database schema
 
-Defined in `supabase/migrations/0001_init.sql`. Apply in the Supabase SQL editor
-or CLI. `auth.users` is owned by Supabase Auth; `profiles.id` references it.
+Defined in `supabase/migrations/0001_init.sql` (fresh databases). Existing
+databases run `supabase/migrations/0002_scholar_gate_mvp.sql` (idempotent).
+A live DB built from a different schema (e.g. `profiles.full_name`,
+`projects.title`) runs `0003_reconcile_live_schema.sql`: it adds the app's
+columns, backfills from legacy names, relaxes legacy NOT NULLs, creates
+`orient_checks`, and resets RLS + the new-user trigger. Idempotent. `auth.users` is owned by Supabase Auth; `profiles.id` references it.
 
 | Table | Purpose |
 | --- | --- |
 | `profiles` | 1:1 with `auth.users` (email, display_name) |
 | `projects` | `name` + `state jsonb` (Project Brain) |
-| `papers` | Saved citable papers (`semantic_scholar` / `openalex` / `arxiv`) |
+| `papers` | Saved citable papers (`semantic_scholar` / `openalex` / `arxiv`) + `stance`, `doi`, `publication_year`, `open_access_url` |
+| `orient_checks` | Comprehension checks (`topic`, `questions_json`, `student_answers_json`, `score` 0–100, `passed`) |
 | `decisions` | Accepted student decisions |
 | `messages` | Chat log (UI + rolling summary, not prompt memory) |
 | `summaries` | Recap written every 20 messages |
@@ -85,6 +96,11 @@ RLS: `auth.uid() = user_id` (profiles: `auth.uid() = id`). Trigger
 **Live vs local:** if `NEXT_PUBLIC_SUPABASE_URL` **and**
 `NEXT_PUBLIC_SUPABASE_ANON_KEY` are set, `getRepo()` uses `supabase-repo`.
 Otherwise it uses `memory-repo` (process memory, wiped on server restart).
+If Supabase is configured but the live schema is missing columns the app
+uses (checked once per server, rechecked every 60s), `getRepo()` also uses
+`memory-repo` while auth stays on Supabase; `/api/me` reports
+`persistence: "server"` and the home page shows a notice. Running
+`0003_reconcile_live_schema.sql` switches it back automatically.
 Local auth uses an httpOnly HMAC cookie (`lib/auth/local-session.ts`).
 
 ## Project Brain (`projects.state`)
@@ -102,15 +118,28 @@ Type: `ProjectState` in `lib/db/types.ts`.
   chosenQuestion: string | null,
   noveltyClaim: string | null,
   openQuestions: string[],
+  milestones: Record<MilestoneId, "not_started" | "in_progress" | "complete">,
+  studentTakeaways: string[],          // student's own words only
+  identifiedGaps: string[],
+  conflictingEvidenceNotes: string[],
 }
 ```
+
+`ProjectBrain` is an alias of `ProjectState`. Milestones, in order:
+`orient_foundations`, `orient_check` (Phase 1); `broad_ideation`,
+`literature_discussion`, `gap_analysis`, `question_formulation`,
+`conflict_refinement` (Phase 2). New fields default when parsing older rows.
+`orient_check` is server-owned: only a passing `orient_checks` submission sets
+it; `update_state` and student PATCHes reject it.
 
 Students can PATCH Brain fields directly (`/api/projects/[id]`). The coach
 cannot change `phase`; `update_state` strips it. Phase 2 is unlocked only by
 `POST /api/projects/[id]/advance` after Orient gates pass (`lib/phases/gates.ts`).
 
 **Orient exit:** specific interest, background ≥ 20 chars, ≥1 constraint, ≥2
-candidate questions.
+candidate questions, passed comprehension check (score ≥ 75; `advance` also
+verifies a passed `orient_checks` row). The grader in `lib/orient/check.ts`
+is a heuristic stub (length + not copied from the question/Brain).
 
 **Find-question exit:** chosen question, novelty claim, ≥3 saved papers, ≥1
 decision. MVP has no Phase 3 UI.
@@ -128,8 +157,10 @@ from the repo, then pass:
 - `userMessage`
 
 **System string:** coach rules (no ghostwriting, no invented cites, patches
-are proposals) + phase brief + Brain JSON + checkbox exit criteria + allowed
-papers + decisions + latest summary.
+are proposals) + phase brief + Brain JSON + milestone checklist with the
+current milestone's brief + exit criteria + takeaways / gaps / conflict notes
++ allowed papers (with stance, DOI, open-access URL) + decisions + latest
+summary.
 
 **User string:** recent DB messages + the new student message.
 
@@ -156,8 +187,10 @@ Validated in `lib/db/schema.ts` before insert:
 | `GET/PATCH/DELETE /api/projects/[id]` | workspace + Brain edits |
 | `POST /api/projects/[id]/advance` | phase gate |
 | `POST /api/chat` | SSE: text deltas + pending patches |
-| `GET /api/papers/search` | Semantic Scholar (live HTTP) |
+| `GET /api/papers/search` | OpenAlex `/works` (live HTTP); `mode=general\|foundational\|conflicting` |
 | `POST /api/papers` | save paper to project |
+| `PATCH /api/papers/[id]` | set paper stance |
+| `GET/POST /api/projects/[id]/orient-check` | list checks / `start` / `submit` answers |
 | `POST /api/patches/[id]` | accept / reject |
 
 ## Live vs stubbed
@@ -167,10 +200,27 @@ Validated in `lib/db/schema.ts` before insert:
 | UI workspace (3 panels) | Live | — |
 | Auth + DB | Supabase when both public env vars set | In-memory repo + cookie auth |
 | Coach | Gemini `generateContentStream` when `GEMINI_API_KEY` is set (`GEMINI_MODEL`, default `gemini-3.8-flash`) | `lib/ai/local-coach.ts` heuristics |
-| Paper search | Semantic Scholar Graph API | Optional `SEMANTIC_SCHOLAR_API_KEY` for quota; no key still calls S2 |
-| OpenAlex / arXiv fetch | **Not implemented** (source enum only) | — |
+| Paper search | OpenAlex `/works` (`lib/papers/openalex.ts`) | Optional `OPENALEX_API_KEY` sent as `api_key`; keyless requests still work |
+| Semantic Scholar / arXiv fetch | **Not implemented** (source enum kept for older rows) | — |
 | Rolling summary | Every 20 messages; Gemini `gemini-3.5-flash-lite` (`GEMINI_SUMMARY_MODEL`) when the API key is set | Deterministic Brain/papers/decisions recap if the key is missing |
 | Zod / Gemini SDK | `zod` + `@google/genai` | — |
+
+## Paper search (OpenAlex)
+
+`searchOpenAlex(query, { mode, limit })` calls `https://api.openalex.org/works`
+with `search`, `per_page`, `select`, and `api_key` (only when
+`OPENALEX_API_KEY` is set). `abstract_inverted_index` is decoded to plain text
+by `decodeAbstract`. Results are zod-validated; works without a title are dropped.
+
+| Mode | Query | Default stance on save |
+| --- | --- | --- |
+| `general` | student query | `neutral` |
+| `foundational` | top 25 by relevance, reranked by `cited_by_count` | `foundational` |
+| `conflicting` | `"query" AND (limitations OR critique OR rethinking OR …)` (≤4-word topics quoted as a phrase, longer ones grouped) | `conflicting` |
+
+The student can change the stance per hit before saving (`POST /api/papers`)
+and later via `PATCH /api/papers/[id]`. Saved hits use `source: "openalex"` and
+the short work id (`W…`) as `external_id`.
 
 ## Environment variables
 
@@ -181,3 +231,4 @@ Mode switches are **env presence**, not source edits:
 
 - Supabase live DB: both `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - Live coach: `GEMINI_API_KEY` (`GEMINI_MODEL` optional, default `gemini-3.8-flash`)
+- Paper search quota: `OPENALEX_API_KEY` (optional; search is live either way)

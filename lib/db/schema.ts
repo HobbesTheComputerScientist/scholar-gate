@@ -1,10 +1,18 @@
 import { z } from "zod";
 
+import { PAPER_SEARCH_MODES } from "@/lib/papers/openalex";
+
 import {
   EXPERIENCE_LEVELS,
+  MILESTONES,
+  MILESTONE_STATUSES,
+  PAPER_STANCES,
   PATCH_TOOLS,
   PHASES,
+  SERVER_OWNED_MILESTONES,
+  emptyMilestones,
   emptyProjectState,
+  type Milestones,
   type ProjectState,
 } from "@/lib/db/types";
 
@@ -17,28 +25,70 @@ export const candidateQuestionSchema = z.object({
   notes: z.string(),
 });
 
-export const projectStateSchema: z.ZodType<ProjectState> = z.object({
+export const milestoneIdSchema = z.enum(MILESTONES);
+export const milestoneStatusSchema = z.enum(MILESTONE_STATUSES);
+export const paperStanceSchema = z.enum(PAPER_STANCES);
+
+/** Missing keys (older Brain rows) default to not_started. */
+const milestonesSchema = z
+  .record(z.string(), z.unknown())
+  .default({})
+  .transform((raw): Milestones => {
+    const base = emptyMilestones();
+    for (const id of MILESTONES) {
+      const parsed = milestoneStatusSchema.safeParse(raw[id]);
+      if (parsed.success) base[id] = parsed.data;
+    }
+    return base;
+  });
+
+const stringList = z.array(z.string());
+
+/**
+ * Fields added after launch use `.default` so Brain rows written before the
+ * upgrade still parse instead of falling back to an empty Brain.
+ */
+export const projectStateSchema = z.object({
   phase: phaseSchema,
   interest: z.string(),
   background: z.string(),
   experienceLevel: experienceLevelSchema,
-  constraints: z.array(z.string()),
+  constraints: stringList,
   candidateQuestions: z.array(candidateQuestionSchema),
   chosenQuestion: z.string().nullable(),
   noveltyClaim: z.string().nullable(),
-  openQuestions: z.array(z.string()),
-});
+  openQuestions: stringList,
+  milestones: milestonesSchema,
+  studentTakeaways: stringList.default([]),
+  identifiedGaps: stringList.default([]),
+  conflictingEvidenceNotes: stringList.default([]),
+}) satisfies z.ZodType<ProjectState, unknown>;
+
+/** Milestone updates the coach or student may propose (not server-owned ones). */
+export const milestonesPatchSchema = z
+  .partialRecord(milestoneIdSchema, milestoneStatusSchema)
+  .refine(
+    (value) => SERVER_OWNED_MILESTONES.every((id) => !(id in value)),
+    {
+      message:
+        "orient_check is set only by passing the comprehension check.",
+    },
+  );
 
 export const updateStatePayloadSchema = z
   .object({
     interest: z.string().optional(),
     background: z.string().optional(),
     experienceLevel: experienceLevelSchema.optional(),
-    constraints: z.array(z.string()).optional(),
+    constraints: stringList.optional(),
     candidateQuestions: z.array(candidateQuestionSchema).optional(),
     chosenQuestion: z.string().nullable().optional(),
     noveltyClaim: z.string().nullable().optional(),
-    openQuestions: z.array(z.string()).optional(),
+    openQuestions: stringList.optional(),
+    milestones: milestonesPatchSchema.optional(),
+    studentTakeaways: stringList.optional(),
+    identifiedGaps: stringList.optional(),
+    conflictingEvidenceNotes: stringList.optional(),
   })
   .strict();
 
@@ -52,6 +102,10 @@ export const addPaperPayloadSchema = z
     abstract: z.string().nullable().optional(),
     url: z.string().nullable().optional(),
     citationCount: z.number().int().nullable().optional(),
+    stance: paperStanceSchema.default("neutral"),
+    doi: z.string().nullable().optional(),
+    publicationYear: z.number().int().nullable().optional(),
+    openAccessUrl: z.string().nullable().optional(),
   })
   .strict();
 
@@ -96,10 +150,31 @@ export const chatInputSchema = z.object({
 export const paperSearchInputSchema = z.object({
   query: z.string().trim().min(2).max(300),
   limit: z.number().int().min(1).max(20).optional(),
+  mode: z.enum(PAPER_SEARCH_MODES).default("general"),
 });
 
 export const savePaperInputSchema = addPaperPayloadSchema.extend({
   projectId: z.string().uuid(),
+});
+
+export const updatePaperStanceInputSchema = z.object({
+  stance: paperStanceSchema,
+});
+
+export const orientCheckQuestionSchema = z.object({
+  id: z.string().min(1),
+  prompt: z.string().min(1),
+  rubric: z.string(),
+});
+
+export const orientCheckAnswerSchema = z.object({
+  questionId: z.string().min(1),
+  answer: z.string().max(4000),
+});
+
+export const orientCheckSubmitSchema = z.object({
+  checkId: z.string().min(1),
+  answers: z.array(orientCheckAnswerSchema).min(1).max(20),
 });
 
 export const patchActionSchema = z.object({

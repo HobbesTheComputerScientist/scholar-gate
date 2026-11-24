@@ -15,6 +15,10 @@ const paper: Paper = {
   abstract: null,
   url: "https://example.com",
   citationCount: 100,
+  stance: "foundational",
+  doi: "10.48550/arXiv.1706.03762",
+  publicationYear: 2017,
+  openAccessUrl: null,
   createdAt: new Date().toISOString(),
 };
 
@@ -62,5 +66,44 @@ describe("assemblePrompt", () => {
 
     expect(assembled.system).toContain("(none — you must not cite any paper)");
     expect(assembled.system).toContain("Phase 1: Orient");
+  });
+
+  it("tracks milestones, takeaways, gaps, and conflicts from the Brain", () => {
+    const state = {
+      ...emptyProjectState(),
+      phase: "find_question" as const,
+      milestones: {
+        ...emptyProjectState().milestones,
+        orient_foundations: "complete" as const,
+        orient_check: "complete" as const,
+        broad_ideation: "complete" as const,
+        literature_discussion: "in_progress" as const,
+      },
+      studentTakeaways: ["Attention replaces recurrence for sequence modeling."],
+      identifiedGaps: ["No study of low-resource grading rubrics."],
+      conflictingEvidenceNotes: ["Paper A and B disagree on rubric transfer."],
+    };
+    const assembled = assemblePrompt({
+      projectName: "Milestones",
+      state,
+      papers: [paper],
+      decisions: [],
+      latestSummary: null,
+      recentMessages: [],
+      userMessage: "What next?",
+    });
+
+    expect(assembled.system).toContain("[x] P1 orient_check");
+    expect(assembled.system).toContain(
+      "[~] P2 literature_discussion: Discuss saved literature  <- current",
+    );
+    expect(assembled.system).toContain("Current milestone focus (literature_discussion)");
+    expect(assembled.system).toContain("Attention replaces recurrence");
+    expect(assembled.system).toContain("No study of low-resource grading rubrics.");
+    expect(assembled.system).toContain("Paper A and B disagree");
+    expect(assembled.system).toContain("stance=foundational");
+    expect(assembled.system).toContain("doi=10.48550/arXiv.1706.03762");
+    expect(assembled.system).toContain("student's own words");
+    expect(assembled.system).toContain("Do NOT ghostwrite");
   });
 });

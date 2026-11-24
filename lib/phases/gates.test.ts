@@ -31,7 +31,17 @@ describe("phase gates", () => {
         { id: "2", text: "Can we bound explanation stability?", notes: "" },
       ],
     };
-    expect(canEnterFindQuestion(ready)).toBe(true);
+    // Everything filled in but the comprehension check not yet passed.
+    expect(canEnterFindQuestion(ready)).toBe(false);
+    expect(
+      evaluateOrientGates(ready).find((c) => !c.passed)?.id,
+    ).toBe("orient_check");
+
+    const checked = {
+      ...ready,
+      milestones: { ...ready.milestones, orient_check: "complete" as const },
+    };
+    expect(canEnterFindQuestion(checked)).toBe(true);
   });
 
   it("requires papers and a decision for phase 2", () => {
@@ -53,6 +63,10 @@ describe("phase gates", () => {
       abstract: null,
       url: null,
       citationCount: null,
+      stance: "neutral" as const,
+      doi: null,
+      publicationYear: 2020,
+      openAccessUrl: null,
       createdAt: new Date().toISOString(),
     })) satisfies Paper[];
 

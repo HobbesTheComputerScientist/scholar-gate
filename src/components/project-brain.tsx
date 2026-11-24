@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,7 +54,12 @@ export function ProjectBrain({
   );
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  const [syncedProject, setSyncedProject] = useState(project);
+
+  // Re-sync the form when a fresh project arrives (e.g. after accepting a
+  // patch). Adjusting state during render avoids an extra effect pass.
+  if (project !== syncedProject) {
+    setSyncedProject(project);
     setInterest(project.state.interest);
     setBackground(project.state.background);
     setExperienceLevel(project.state.experienceLevel);
@@ -62,7 +67,7 @@ export function ProjectBrain({
     setCandidates(project.state.candidateQuestions.map((q) => q.text).join("\n"));
     setChosenQuestion(project.state.chosenQuestion ?? "");
     setNoveltyClaim(project.state.noveltyClaim ?? "");
-  }, [project]);
+  }
 
   async function save() {
     setSaving(true);
@@ -94,8 +99,23 @@ export function ProjectBrain({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto pr-1">
-      <section className="space-y-2">
-        <h2 className="text-sm font-semibold">Pending patches</h2>
+      <section
+        className={
+          patches.length > 0
+            ? "space-y-2 rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-2.5"
+            : "space-y-2"
+        }
+        aria-label="Pending patches"
+      >
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          Needs your review
+          {patches.length > 0 ? (
+            <span className="relative flex size-5 items-center justify-center rounded-full bg-indigo-500 text-[11px] font-bold text-white">
+              <span className="absolute inset-0 animate-ping rounded-full bg-indigo-500/50" aria-hidden />
+              <span className="relative">{patches.length}</span>
+            </span>
+          ) : null}
+        </h2>
         <PatchReview
           patches={patches}
           busyId={busyPatchId}
@@ -103,8 +123,8 @@ export function ProjectBrain({
         />
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold">Project Brain</h2>
+      <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+        <h2 className="text-sm font-semibold text-sky-300">Project Brain</h2>
         <Field label="Interest">
           <Textarea
             value={interest}
@@ -171,8 +191,8 @@ export function ProjectBrain({
         </Button>
       </section>
 
-      <section className="space-y-2">
-        <h2 className="text-sm font-semibold">Literature</h2>
+      <section className="space-y-2 rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+        <h2 className="text-sm font-semibold text-sky-300">Literature</h2>
         <PaperSearch
           projectId={project.id}
           papers={papers}
@@ -200,7 +220,7 @@ function Field({
   children: ReactNode;
 }) {
   return (
-    <label className="grid gap-1 text-xs font-medium">
+    <label className="grid gap-1 text-xs font-medium text-slate-300">
       {label}
       {children}
     </label>

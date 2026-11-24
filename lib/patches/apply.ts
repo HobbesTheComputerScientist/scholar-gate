@@ -6,10 +6,12 @@ export function applyStatePatch(
   current: ProjectState,
   payload: unknown,
 ): ProjectState {
-  const patch = updateStatePayloadSchema.parse(payload);
+  const { milestones, ...patch } = updateStatePayloadSchema.parse(payload);
   return {
     ...current,
     ...patch,
+    // Partial merge; server-owned milestones are rejected by the schema.
+    milestones: { ...current.milestones, ...milestones },
     phase: current.phase,
   };
 }
@@ -44,6 +46,10 @@ export async function applyAcceptedPatch(
         abstract: paper.abstract ?? null,
         url: paper.url ?? null,
         citationCount: paper.citationCount ?? null,
+        stance: paper.stance,
+        doi: paper.doi ?? null,
+        publicationYear: paper.publicationYear ?? paper.year ?? null,
+        openAccessUrl: paper.openAccessUrl ?? null,
       });
     }
     return project;

@@ -7,13 +7,14 @@ import { Button } from "@/components/ui/button";
 import { ChatPanel, streamChat } from "@/src/components/chat-panel";
 import { PhaseStepper } from "@/src/components/phase-stepper";
 import { ProjectBrain } from "@/src/components/project-brain";
-import type {
-  ChatMessage,
-  Paper,
-  Project,
-  ProjectState,
-  ProposedPatch,
-  Summary,
+import {
+  PHASE_LABELS,
+  type ChatMessage,
+  type Paper,
+  type Project,
+  type ProjectState,
+  type ProposedPatch,
+  type Summary,
 } from "@/lib/db/types";
 
 type WorkspacePayload = {
@@ -45,7 +46,9 @@ export function WorkspaceShell({ projectId }: { projectId: string }) {
   }, [projectId]);
 
   useEffect(() => {
-    void load();
+    void (async () => {
+      await load();
+    })();
   }, [load]);
 
   async function handleSend(message: string) {
@@ -187,41 +190,51 @@ export function WorkspaceShell({ projectId }: { projectId: string }) {
     payload;
 
   return (
-    <div className="flex min-h-full flex-col">
-      <header className="border-b bg-background">
+    <div className="flex min-h-full flex-col bg-slate-950 lg:h-dvh lg:min-h-0">
+      <header className="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
         <div className="flex items-center justify-between gap-4 px-4 py-3">
           <div>
             <Button asChild variant="ghost" size="sm" className="-ml-2 mb-1">
               <Link href="/">All projects</Link>
             </Button>
-            <h1 className="text-lg font-semibold">{project.name}</h1>
-            <p className="text-xs text-muted-foreground">
-              Research Coach · structured Brain is the source of truth
+            <h1 className="text-lg font-semibold tracking-tight">{project.name}</h1>
+            <p className="text-xs text-slate-400">
+              Research Coach
             </p>
           </div>
+          <span
+            className={
+              project.state.phase === "orient"
+                ? "rounded-full border border-sky-400/40 bg-sky-400/10 px-3 py-1 text-xs font-medium text-sky-300"
+                : "rounded-full border border-indigo-500/40 bg-indigo-500/15 px-3 py-1 text-xs font-medium text-indigo-200"
+            }
+          >
+            {PHASE_LABELS[project.state.phase]}
+          </span>
         </div>
         {error ? (
           <p className="border-t px-4 py-2 text-xs text-destructive">{error}</p>
         ) : null}
       </header>
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)_340px]">
-        <aside className="border-b bg-muted/20 p-4 lg:border-b-0 lg:border-r">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 p-3 lg:grid-cols-[264px_minmax(0,1fr)_360px]">
+        <aside className="rounded-xl border border-slate-800 bg-slate-900 p-4 lg:min-h-0 lg:overflow-y-auto">
           <PhaseStepper
             project={project}
             papers={papers}
             decisionCount={decisions.length}
             onAdvance={() => void advance()}
             advancing={advancing}
+            onCheckPassed={() => void load()}
           />
         </aside>
-        <section className="min-h-[420px] p-4">
+        <section className="h-[70dvh] rounded-xl border border-slate-800 bg-slate-900 p-4 lg:h-auto lg:min-h-0">
           <ChatPanel
             messages={messages}
             sending={sending}
             onSend={handleSend}
           />
         </section>
-        <aside className="border-t bg-muted/20 p-4 lg:border-l lg:border-t-0">
+        <aside className="rounded-xl border border-slate-800 bg-slate-900 p-3 lg:min-h-0 lg:overflow-hidden">
           <ProjectBrain
             project={project}
             papers={papers}

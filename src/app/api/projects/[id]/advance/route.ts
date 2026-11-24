@@ -27,6 +27,14 @@ export async function POST(_request: Request, context: Ctx) {
           { status: 400 },
         );
       }
+      // The orient_checks table is the source of truth for the comprehension gate.
+      const orientChecks = await repo.listOrientChecks(user.id, id);
+      if (!orientChecks.some((check) => check.passed)) {
+        return Response.json(
+          { error: "Pass the Orient comprehension check first.", checks },
+          { status: 400 },
+        );
+      }
       const updated = await repo.updateProjectState(user.id, id, {
         ...project.state,
         phase: "find_question",

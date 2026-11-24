@@ -22,6 +22,58 @@ export const PHASE_LABELS: Record<PhaseId, string> = {
   find_question: "Phase 2: Find your question",
 };
 
+export const MILESTONES = [
+  "orient_foundations",
+  "orient_check",
+  "broad_ideation",
+  "literature_discussion",
+  "gap_analysis",
+  "question_formulation",
+  "conflict_refinement",
+] as const;
+export type MilestoneId = (typeof MILESTONES)[number];
+
+export const MILESTONE_STATUSES = [
+  "not_started",
+  "in_progress",
+  "complete",
+] as const;
+export type MilestoneStatus = (typeof MILESTONE_STATUSES)[number];
+
+export type Milestones = Record<MilestoneId, MilestoneStatus>;
+
+export const MILESTONE_LABELS: Record<MilestoneId, string> = {
+  orient_foundations: "Orient: foundations of the topic",
+  orient_check: "Orient: pass the comprehension check",
+  broad_ideation: "Broad ideation of possible questions",
+  literature_discussion: "Discuss saved literature",
+  gap_analysis: "Gap analysis against saved papers",
+  question_formulation: "Formulate one research question",
+  conflict_refinement: "Refine against conflicting evidence",
+};
+
+export const MILESTONE_PHASE: Record<MilestoneId, PhaseId> = {
+  orient_foundations: "orient",
+  orient_check: "orient",
+  broad_ideation: "find_question",
+  literature_discussion: "find_question",
+  gap_analysis: "find_question",
+  question_formulation: "find_question",
+  conflict_refinement: "find_question",
+};
+
+/**
+ * Milestones only the server may set (from a passed `orient_checks` row).
+ * Coach patches and student PATCHes cannot change them.
+ */
+export const SERVER_OWNED_MILESTONES: readonly MilestoneId[] = ["orient_check"];
+
+export function emptyMilestones(): Milestones {
+  return Object.fromEntries(
+    MILESTONES.map((id) => [id, "not_started"]),
+  ) as Milestones;
+}
+
 export type CandidateQuestion = {
   id: string;
   text: string;
@@ -38,7 +90,23 @@ export type ProjectState = {
   chosenQuestion: string | null;
   noveltyClaim: string | null;
   openQuestions: string[];
+  milestones: Milestones;
+  /** Takeaways in the student's own words (never written by the coach). */
+  studentTakeaways: string[];
+  identifiedGaps: string[];
+  conflictingEvidenceNotes: string[];
 };
+
+/** Project Brain: the `projects.state` jsonb column. */
+export type ProjectBrain = ProjectState;
+
+export const PAPER_STANCES = [
+  "supporting",
+  "conflicting",
+  "foundational",
+  "neutral",
+] as const;
+export type PaperStance = (typeof PAPER_STANCES)[number];
 
 export type Profile = {
   id: string;
@@ -68,6 +136,35 @@ export type Paper = {
   abstract: string | null;
   url: string | null;
   citationCount: number | null;
+  stance: PaperStance;
+  doi: string | null;
+  publicationYear: number | null;
+  openAccessUrl: string | null;
+  createdAt: string;
+};
+
+export type OrientCheckQuestion = {
+  id: string;
+  prompt: string;
+  /** What a passing answer must show; used by the grader, not shown as a model answer. */
+  rubric: string;
+};
+
+export type OrientCheckAnswer = {
+  questionId: string;
+  answer: string;
+};
+
+export type OrientCheck = {
+  id: string;
+  projectId: string;
+  userId: string;
+  topic: string;
+  questions: OrientCheckQuestion[];
+  studentAnswers: OrientCheckAnswer[];
+  /** 0–100. */
+  score: number;
+  passed: boolean;
   createdAt: string;
 };
 
@@ -128,5 +225,9 @@ export function emptyProjectState(
     chosenQuestion: null,
     noveltyClaim: null,
     openQuestions: [],
+    milestones: emptyMilestones(),
+    studentTakeaways: [],
+    identifiedGaps: [],
+    conflictingEvidenceNotes: [],
   };
 }

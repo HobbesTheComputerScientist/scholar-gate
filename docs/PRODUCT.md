@@ -1,6 +1,6 @@
 # Research Coach — MVP product spec
 
-Research Coach guides undergrads through **starting** an AI/ML research
+Research Coach guides undergrads through **starting** a research
 paper. The AI never loses project context: **Postgres project state is
 the source of truth**. Every model call is assembled from that state.
 Do not treat chat history as memory.
@@ -24,7 +24,7 @@ The model coaches and critiques. It must not write the paper.
 | --- | --- |
 | `profiles` | 1:1 with `auth.users` |
 | `projects` | Name + `state` jsonb (Project Brain) |
-| `papers` | User-saved papers from Semantic Scholar / OpenAlex / arXiv |
+| `papers` | User-saved papers (searched via OpenAlex; `semantic_scholar` / `arxiv` sources kept for older rows) |
 | `decisions` | Explicit choices the student accepted |
 | `messages` | Chat log (display + rolling summaries, not prompt memory) |
 | `summaries` | Rolling condensation every 20 messages |

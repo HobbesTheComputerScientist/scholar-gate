@@ -48,6 +48,12 @@ export function evaluateOrientGates(state: ProjectState): GateCheck[] {
       passed: state.candidateQuestions.filter((q) => q.text.trim().length > 0)
         .length >= 2,
     },
+    {
+      id: "orient_check",
+      label: "Passed the Orient comprehension check",
+      // Set only by the server after a passing `orient_checks` row.
+      passed: state.milestones.orient_check === "complete",
+    },
   ];
 }
 
